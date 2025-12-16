@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Superadmin</title>
+</head>
+<body>
+    <h1>Superadmin Test</h1>
+    <button onclick="testAuth()">Test Auth</button>
+    <button onclick="testSuperadmin()">Test Superadmin API</button>
+    <pre id="output"></pre>
+
+    <script>
+        async function testAuth() {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch('/api/debug/me', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function testSuperadmin() {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch('/api/superadmin/organizations', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            const data = await res.json();
+            document.getElementById('output').textContent = 
+                'Status: ' + res.status + '\n' + JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>

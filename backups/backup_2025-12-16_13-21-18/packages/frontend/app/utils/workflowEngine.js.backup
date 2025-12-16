@@ -1,0 +1,265 @@
+import { query, getClient } from './db';
+import OpenAI from 'openai';
+
+/**
+ * Workflow Execution Engine
+ * Executes workflow steps sequentially and tracks progress
+ */
+
+// Execute a complete workflow
+export async function executeWorkflow(runId, workflow, triggerData, orgId) {
+    const client = await getClient();
+
+    try {
+        const steps = typeof workflow.steps === 'string'
+            ? JSON.parse(workflow.steps)
+            : workflow.steps;
+
+        let stepData = triggerData; // Data passed between steps
+
+        // Execute each step sequentially
+        for (let i = 0; i < steps.length; i++) {
+            const step = steps[i];
+
+            try {
+                // Create step record
+                await client.query(
+                    `INSERT INTO workflow_run_steps 
+                     (workflow_run_id, step_number, step_type, step_config, status, started_at)
+                     VALUES ($1, $2, $3, $4, 'running', NOW())`,
+                    [runId, i + 1, step.type, JSON.stringify(step.config || {})]
+                );
+
+                // Execute step based on type
+                const result = await executeStep(step, stepData, orgId);
+
+                // Update step as completed
+                await client.query(
+                    `UPDATE workflow_run_steps
+                     SET status = 'completed',
+                         result = $1,
+                         completed_at = NOW()
+                     WHERE workflow_run_id = $2 AND step_number = $3`,
+                    [JSON.stringify(result), runId, i + 1]
+                );
+
+                // Pass result to next step
+                stepData = { ...stepData, ...result };
+
+            } catch (stepError) {
+                // Mark step as failed
+                await client.query(
+                    `UPDATE workflow_run_steps
+                     SET status = 'failed',
+                         error_message = $1,
+                         completed_at = NOW()
+                     WHERE workflow_run_id = $2 AND step_number = $3`,
+                    [stepError.message, runId, i + 1]
+                );
+
+                throw stepError; // Stop workflow execution
+            }
+        }
+
+        // Mark workflow run as completed
+        await client.query(
+            `UPDATE workflow_runs
+             SET status = 'completed',
+                 completed_at = NOW()
+             WHERE id = $1`,
+            [runId]
+        );
+
+    } catch (error) {
+        // Mark workflow run as failed
+        await client.query(
+            `UPDATE workflow_runs
+             SET status = 'failed',
+                 error_message = $1,
+                 completed_at = NOW()
+             WHERE id = $2`,
+            [error.message, runId]
+        );
+
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+// Execute individual step based on type
+async function executeStep(step, inputData, orgId) {
+    switch (step.type) {
+        case 'classify_email':
+            return await classifyEmail(step.config, inputData, orgId);
+
+        case 'extract_tasks':
+            return await extractTasks(step.config, inputData, orgId);
+
+        case 'generate_draft':
+            return await generateDraft(step.config, inputData, orgId);
+
+        case 'ai_action':
+            return await aiAction(step.config, inputData, orgId);
+
+        default:
+            throw new Error(`Unknown step type: ${step.type}`);
+    }
+}
+
+// Step: Classify Email
+async function classifyEmail(config, inputData, orgId) {
+    const { emailContent, emailSubject } = inputData;
+
+    if (!emailContent) {
+        throw new Error('Email content is required for classification');
+    }
+
+    // Get API key
+    const apiKey = await getOrgApiKey(orgId);
+    const openai = new OpenAI({ apiKey });
+
+    const categories = config.categories || [
+        'urgent', 'customer_inquiry', 'internal', 'spam', 'general'
+    ];
+
+    const prompt = `Classify the following email into one of these categories: ${categories.join(', ')}.
+
+Subject: ${emailSubject || 'N/A'}
+Content: ${emailContent}
+
+Respond with only the category name.`;
+
+    const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 50,
+    });
+
+    const category = completion.choices[0].message.content.trim().toLowerCase();
+
+    return {
+        category,
+        confidence: 'high'
+    };
+}
+
+// Step: Extract Tasks
+async function extractTasks(config, inputData, orgId) {
+    const { emailContent, emailSubject } = inputData;
+
+    if (!emailContent) {
+        throw new Error('Email content is required for task extraction');
+    }
+
+    const apiKey = await getOrgApiKey(orgId);
+    const openai = new OpenAI({ apiKey });
+
+    const prompt = `Extract action items and tasks from the following email. Return as a JSON array of objects with 'task' and 'priority' (high/medium/low) fields.
+
+Subject: ${emailSubject || 'N/A'}
+Content: ${emailContent}
+
+Return only valid JSON array.`;
+
+    const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 500,
+    });
+
+    const tasksText = completion.choices[0].message.content.trim();
+
+    try {
+        const tasks = JSON.parse(tasksText);
+        return { tasks: Array.isArray(tasks) ? tasks : [] };
+    } catch (e) {
+        return { tasks: [] };
+    }
+}
+
+// Step: Generate Draft Response
+async function generateDraft(config, inputData, orgId) {
+    const { emailContent, emailSubject, category } = inputData;
+
+    if (!emailContent) {
+        throw new Error('Email content is required for draft generation');
+    }
+
+    const apiKey = await getOrgApiKey(orgId);
+    const openai = new OpenAI({ apiKey });
+
+    const tone = config.tone || 'professional';
+    const instructions = config.instructions || 'Generate a helpful response';
+
+    const prompt = `Generate an email response with a ${tone} tone.
+
+Original Email:
+Subject: ${emailSubject || 'N/A'}
+${category ? `Category: ${category}` : ''}
+Content: ${emailContent}
+
+Instructions: ${instructions}
+
+Generate only the email body, no subject line.`;
+
+    const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1000,
+    });
+
+    const draftContent = completion.choices[0].message.content.trim();
+
+    return {
+        draftContent,
+        draftSubject: `Re: ${emailSubject || 'Your inquiry'}`
+    };
+}
+
+// Step: Custom AI Action
+async function aiAction(config, inputData, orgId) {
+    const { prompt, inputField } = config;
+
+    if (!prompt) {
+        throw new Error('AI action requires a prompt');
+    }
+
+    const apiKey = await getOrgApiKey(orgId);
+    const openai = new OpenAI({ apiKey });
+
+    const inputValue = inputField ? inputData[inputField] : JSON.stringify(inputData);
+
+    const fullPrompt = prompt.replace('{{input}}', inputValue);
+
+    const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [{ role: 'user', content: fullPrompt }],
+        temperature: 0.7,
+        max_tokens: 1000,
+    });
+
+    const result = completion.choices[0].message.content.trim();
+
+    return {
+        aiResult: result
+    };
+}
+
+// Helper: Get organization's API key
+async function getOrgApiKey(orgId) {
+    const result = await query(
+        `SELECT openai_api_key FROM org_api_keys WHERE org_id = $1`,
+        [orgId]
+    );
+
+    if (result.rows.length > 0) {
+        return result.rows[0].openai_api_key;
+    }
+
+    // Fallback to global key
+    return process.env.OPENAI_API_KEY;
+}
