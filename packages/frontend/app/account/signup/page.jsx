@@ -28,7 +28,7 @@ export default function SignUpPage() {
 
             if (res.ok) {
                 localStorage.setItem('auth_token', data.token);
-                router.push('/onboarding');
+                router.push('/dashboard');
             } else {
                 setError(data.error || 'Sign up failed');
             }

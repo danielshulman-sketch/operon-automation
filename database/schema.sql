@@ -127,6 +127,31 @@ CREATE TABLE voice_profiles (
   UNIQUE(user_id)
 );
 
+-- Auto draft settings per user
+CREATE TABLE user_auto_draft_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  enabled BOOLEAN DEFAULT false,
+  categories JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id)
+);
+
+-- Auto email sync settings per user
+CREATE TABLE user_email_sync_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  enabled BOOLEAN DEFAULT false,
+  interval_minutes INTEGER DEFAULT 15,
+  last_run_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id)
+);
+
 -- Email drafts
 CREATE TABLE email_drafts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -138,6 +163,20 @@ CREATE TABLE email_drafts (
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Sent email replies
+CREATE TABLE email_replies (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reply_to_message_id UUID REFERENCES email_messages(id) ON DELETE CASCADE,
+  subject VARCHAR(500),
+  body TEXT NOT NULL,
+  sent_via VARCHAR(50),
+  external_message_id TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  sent_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Bulk draft jobs
@@ -153,6 +192,20 @@ CREATE TABLE bulk_draft_jobs (
   results JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ
+);
+
+-- AI provider settings per organization
+CREATE TABLE org_ai_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  provider VARCHAR(50) DEFAULT 'openai',
+  model VARCHAR(100),
+  openai_api_key TEXT,
+  anthropic_api_key TEXT,
+  google_api_key TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(org_id)
 );
 
 -- Detected tasks
@@ -300,8 +353,13 @@ CREATE INDEX idx_email_messages_org ON email_messages(org_id);
 CREATE INDEX idx_email_messages_thread ON email_messages(thread_id);
 CREATE INDEX idx_email_messages_received ON email_messages(received_at DESC);
 CREATE INDEX idx_voice_profiles_user ON voice_profiles(user_id);
+CREATE INDEX idx_user_auto_draft_settings_user ON user_auto_draft_settings(user_id);
+CREATE INDEX idx_user_email_sync_settings_user ON user_email_sync_settings(user_id);
 CREATE INDEX idx_email_drafts_user ON email_drafts(user_id);
 CREATE INDEX idx_email_drafts_reply_to ON email_drafts(reply_to_message_id);
+CREATE INDEX idx_email_replies_user ON email_replies(user_id);
+CREATE INDEX idx_email_replies_reply_to ON email_replies(reply_to_message_id);
+CREATE INDEX idx_org_ai_settings_org ON org_ai_settings(org_id);
 CREATE INDEX idx_bulk_draft_jobs_user ON bulk_draft_jobs(user_id);
 CREATE INDEX idx_bulk_draft_jobs_status ON bulk_draft_jobs(org_id, status);
 CREATE INDEX idx_detected_tasks_org ON detected_tasks(org_id);

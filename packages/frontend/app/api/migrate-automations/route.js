@@ -12,7 +12,7 @@ export async function POST(request) {
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                 org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
                 integration_name VARCHAR(100) NOT NULL,
-                credentials JSONB NOT NULL,
+                credentials TEXT NOT NULL,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
                 UNIQUE(org_id, integration_name)

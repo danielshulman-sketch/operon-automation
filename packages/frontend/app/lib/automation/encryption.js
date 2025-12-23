@@ -32,6 +32,30 @@ export function decrypt(text) {
     return decrypted;
 }
 
+export function normalizeEncryptedValue(value) {
+    if (typeof value === 'string') {
+        return value;
+    }
+    if (value === null || value === undefined) {
+        return '';
+    }
+    if (typeof value === 'object') {
+        if (typeof value.encrypted === 'string') {
+            return value.encrypted;
+        }
+        return JSON.stringify(value);
+    }
+    return String(value);
+}
+
+export function decryptValue(value) {
+    const encrypted = normalizeEncryptedValue(value);
+    if (!encrypted) {
+        throw new Error('Missing encrypted credentials');
+    }
+    return decrypt(encrypted);
+}
+
 /**
  * Generate a secure random string
  */

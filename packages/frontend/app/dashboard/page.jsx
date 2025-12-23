@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Clock, TrendingUp, CheckCircle, XCircle, Plus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Clock, TrendingUp, CheckCircle, XCircle, Plus, CheckSquare } from 'lucide-react';
 
 export default function DashboardPage() {
     const [user, setUser] = useState(null);
@@ -58,7 +59,9 @@ export default function DashboardPage() {
     const fetchTasks = async () => {
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('/api/tasks', {
+            // Admins fetch from admin endpoint to get assignment info
+            const endpoint = user?.isAdmin ? '/api/admin/tasks' : '/api/tasks';
+            const res = await fetch(endpoint, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
@@ -72,13 +75,31 @@ export default function DashboardPage() {
 
     const firstName = user?.first_name || 'there';
 
+    const getPriorityBadge = (priority) => {
+        const normalized = priority || 'medium';
+        const styles = {
+            high: 'bg-red-500/15 text-red-300',
+            medium: 'bg-orange-500/15 text-orange-300',
+            low: 'bg-green-500/15 text-green-300',
+        };
+        const labels = {
+            high: 'High priority',
+            medium: 'Medium priority',
+            low: 'Low priority',
+        };
+        return {
+            label: labels[normalized] || 'Medium priority',
+            styles: styles[normalized] || styles.medium,
+        };
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-10">
             {/* Header */}
             <header className="pt-2 space-y-2">
                 <p className="text-xs uppercase tracking-[0.18em] text-white/50">Dashboard</p>
                 <h1 className="text-4xl font-bold text-white">
-                    Welcome back, {firstName}
+                    Welcome back{user?.firstName ? `, ${user.firstName.charAt(0).toUpperCase() + user.firstName.slice(1)} ` : user?.email ? `, ${user.email.split('@')[0].charAt(0).toUpperCase() + user.email.split('@')[0].slice(1)} ` : ''}
                 </h1>
                 <p className="text-white/50 text-sm">Loading...</p>
             </header>
@@ -86,60 +107,68 @@ export default function DashboardPage() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
                 {/* Pending Tasks */}
-                <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center text-blue-400">
-                            <Clock className="h-5 w-5" />
+                <Link href="/dashboard/tasks?status=pending" className="block">
+                    <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4 hover:border-white/15 transition-all cursor-pointer">
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-blue-500/15 flex items-center justify-center text-blue-400">
+                                <Clock className="h-5 w-5" />
+                            </div>
+                            <span className="text-white/60 text-sm">Today</span>
                         </div>
-                        <span className="text-white/60 text-sm">Today</span>
+                        <div>
+                            <p className="text-4xl font-bold text-white leading-none mb-1">{stats.pending}</p>
+                            <p className="text-white/50 text-sm">Pending Tasks</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-4xl font-bold text-white leading-none mb-1">{stats.pending}</p>
-                        <p className="text-white/50 text-sm">Pending Tasks</p>
-                    </div>
-                </div>
+                </Link>
 
                 {/* In Progress */}
-                <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-orange-500/15 flex items-center justify-center text-orange-400">
-                            <TrendingUp className="h-5 w-5" />
+                <Link href="/dashboard/tasks?status=in_progress" className="block">
+                    <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4 hover:border-white/15 transition-all cursor-pointer">
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-orange-500/15 flex items-center justify-center text-orange-400">
+                                <TrendingUp className="h-5 w-5" />
+                            </div>
+                            <span className="text-white/60 text-sm">Active</span>
                         </div>
-                        <span className="text-white/60 text-sm">Active</span>
+                        <div>
+                            <p className="text-4xl font-bold text-white leading-none mb-1">{stats.inProgress}</p>
+                            <p className="text-white/50 text-sm">In Progress</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-4xl font-bold text-white leading-none mb-1">{stats.inProgress}</p>
-                        <p className="text-white/50 text-sm">In Progress</p>
-                    </div>
-                </div>
+                </Link>
 
                 {/* Completed */}
-                <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-green-500/15 flex items-center justify-center text-green-400">
-                            <CheckCircle className="h-5 w-5" />
+                <Link href="/dashboard/tasks?status=completed" className="block">
+                    <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4 hover:border-white/15 transition-all cursor-pointer">
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-green-500/15 flex items-center justify-center text-green-400">
+                                <CheckCircle className="h-5 w-5" />
+                            </div>
+                            <span className="text-white/60 text-sm">This week</span>
                         </div>
-                        <span className="text-white/60 text-sm">This week</span>
+                        <div>
+                            <p className="text-4xl font-bold text-white leading-none mb-1">{stats.completed}</p>
+                            <p className="text-white/50 text-sm">Completed</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-4xl font-bold text-white leading-none mb-1">{stats.completed}</p>
-                        <p className="text-white/50 text-sm">Completed</p>
-                    </div>
-                </div>
+                </Link>
 
                 {/* Urgent */}
-                <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-red-500/15 flex items-center justify-center text-red-400">
-                            <XCircle className="h-5 w-5" />
+                <Link href="/dashboard/tasks?priority=high" className="block">
+                    <div className="bg-[#0f0f0f] rounded-2xl p-6 border border-white/5 shadow-[0_15px_55px_rgba(0,0,0,0.45)] flex flex-col gap-4 hover:border-white/15 transition-all cursor-pointer">
+                        <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 rounded-xl bg-red-500/15 flex items-center justify-center text-red-400">
+                                <XCircle className="h-5 w-5" />
+                            </div>
+                            <span className="text-white/60 text-sm">High Priority</span>
                         </div>
-                        <span className="text-white/60 text-sm">High Priority</span>
+                        <div>
+                            <p className="text-4xl font-bold text-white leading-none mb-1">{stats.urgent}</p>
+                            <p className="text-white/50 text-sm">Urgent</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-4xl font-bold text-white leading-none mb-1">{stats.urgent}</p>
-                        <p className="text-white/50 text-sm">Urgent</p>
-                    </div>
-                </div>
+                </Link>
             </div>
 
             {/* Recent Tasks */}
@@ -151,9 +180,9 @@ export default function DashboardPage() {
                     </button>
                 </div>
 
-                {tasks.length === 0 ? (
+                {tasks.filter(task => task.status !== 'completed').length === 0 ? (
                     <div className="text-center py-10">
-                        <p className="text-white/60 mb-4">No tasks yet</p>
+                        <p className="text-white/60 mb-4">No active tasks</p>
                         <button className="px-6 py-2.5 rounded-full bg-gradient-to-b from-white to-[#dcdcdc] text-black font-semibold shadow-[0_10px_40px_rgba(0,0,0,0.35)] hover:brightness-105 transition-all inline-flex items-center gap-2">
                             <Plus className="h-4 w-4" />
                             Create your first task
@@ -161,36 +190,42 @@ export default function DashboardPage() {
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {tasks.slice(0, 5).map((task) => (
-                            <div
-                                key={task.id}
-                                className="bg-[#0c0c0c] rounded-xl p-4 border border-white/5 hover:border-white/15 transition-colors"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <h3 className="text-white font-medium">{task.title}</h3>
-                                        {task.description && (
-                                            <p className="text-white/60 text-sm">{task.description}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        {task.priority === 'high' && (
-                                            <span className="px-2.5 py-1 bg-red-500/15 text-red-300 text-xs rounded-full">
-                                                Urgent
+                        {tasks.filter(task => task.status !== 'completed').slice(0, 5).map((task) => {
+                            const priorityBadge = getPriorityBadge(task.priority);
+                            return (
+                                <div
+                                    key={task.id}
+                                    className="bg-[#0c0c0c] rounded-xl p-4 border border-white/5 hover:border-white/15 transition-colors"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1 flex-1">
+                                            <h3 className="text-white font-medium">{task.title}</h3>
+                                            {task.description && (
+                                                <p className="text-white/60 text-sm">{task.description}</p>
+                                            )}
+                                            {user?.isAdmin && (task.user_email || task.first_name) && (
+                                                <p className="text-white/50 text-xs mt-1">
+                                                    Assigned to: {task.first_name ? `${task.first_name} ${task.last_name || ''}` : task.user_email}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-2.5 py-1 text-xs rounded-full ${priorityBadge.styles}`}>
+                                                {priorityBadge.label}
                                             </span>
-                                        )}
-                                        <span className={`px-2.5 py-1 text-xs rounded-full ${task.status === 'completed'
+                                            <span className={`px-2.5 py-1 text-xs rounded-full ${task.status === 'completed'
                                                 ? 'bg-green-500/15 text-green-300'
                                                 : task.status === 'in_progress'
                                                     ? 'bg-orange-500/15 text-orange-300'
                                                     : 'bg-blue-500/15 text-blue-300'
-                                            }`}>
-                                            {task.status === 'in_progress' ? 'In Progress' : task.status}
-                                        </span>
+                                                }`}>
+                                                {task.status === 'in_progress' ? 'In Progress' : task.status}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </section>

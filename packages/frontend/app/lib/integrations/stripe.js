@@ -83,5 +83,53 @@ export const stripeIntegration = {
             currency: data.currency,
             status: data.status
         };
+    },
+
+    /**
+     * Get Stripe account statistics
+     */
+    async get_stats(credentials) {
+        const { api_key } = credentials;
+
+        try {
+            // Fetch customers
+            const customersResponse = await fetch('https://api.stripe.com/v1/customers?limit=1', {
+                headers: { 'Authorization': `Bearer ${api_key}` }
+            });
+            const customersData = await customersResponse.json();
+
+            // Fetch recent charges
+            const chargesResponse = await fetch('https://api.stripe.com/v1/charges?limit=100', {
+                headers: { 'Authorization': `Bearer ${api_key}` }
+            });
+            const chargesData = await chargesResponse.json();
+
+            const successfulCharges = (chargesData.data || []).filter(c => c.paid && c.status === 'succeeded');
+            const totalRevenue = successfulCharges.reduce((sum, c) => sum + c.amount, 0) / 100;
+
+            // Fetch balance
+            const balanceResponse = await fetch('https://api.stripe.com/v1/balance', {
+                headers: { 'Authorization': `Bearer ${api_key}` }
+            });
+            const balanceData = await balanceResponse.json();
+
+            return {
+                customers: {
+                    total: customersData.has_more ? '1000+' : customersData.data?.length || 0
+                },
+                revenue: {
+                    total: totalRevenue,
+                    currency: balanceData.available?.[0]?.currency || 'usd',
+                    successful_charges: successfulCharges.length
+                },
+                balance: {
+                    available: (balanceData.available?.[0]?.amount || 0) / 100,
+                    pending: (balanceData.pending?.[0]?.amount || 0) / 100
+                }
+            };
+        } catch (error) {
+            console.error('Stripe stats error:', error);
+            throw new Error(`Failed to fetch Stripe statistics: ${error.message}`);
+        }
     }
 };

@@ -87,6 +87,22 @@ CREATE TABLE IF NOT EXISTS email_drafts (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- Email Replies
+CREATE TABLE IF NOT EXISTS email_replies (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    reply_to_message_id TEXT,
+    subject TEXT,
+    body TEXT,
+    sent_via TEXT,
+    external_message_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (org_id) REFERENCES organisations(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
 -- Voice Profiles
 CREATE TABLE IF NOT EXISTS voice_profiles (
     id TEXT PRIMARY KEY,
@@ -100,6 +116,33 @@ CREATE TABLE IF NOT EXISTS voice_profiles (
     is_trained BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Auto Draft Settings
+CREATE TABLE IF NOT EXISTS user_auto_draft_settings (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT UNIQUE NOT NULL,
+    enabled BOOLEAN DEFAULT 0,
+    categories TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (org_id) REFERENCES organisations(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Auto Email Sync Settings
+CREATE TABLE IF NOT EXISTS user_email_sync_settings (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    user_id TEXT UNIQUE NOT NULL,
+    enabled BOOLEAN DEFAULT 0,
+    interval_minutes INTEGER DEFAULT 15,
+    last_run_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (org_id) REFERENCES organisations(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
@@ -161,4 +204,18 @@ CREATE TABLE IF NOT EXISTS bulk_draft_jobs (
     completed_at DATETIME,
     FOREIGN KEY (org_id) REFERENCES organisations(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- AI Provider Settings
+CREATE TABLE IF NOT EXISTS org_ai_settings (
+    id TEXT PRIMARY KEY,
+    org_id TEXT UNIQUE NOT NULL,
+    provider TEXT DEFAULT 'openai',
+    model TEXT,
+    openai_api_key TEXT,
+    anthropic_api_key TEXT,
+    google_api_key TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (org_id) REFERENCES organisations(id)
 );

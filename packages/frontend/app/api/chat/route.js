@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server';
 import { query, getClient } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
-import OpenAI from 'openai';
+import { generateChatResponse } from '@/utils/openai';
+import { formatAssistantMessage } from './format-message';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
+const ALLOWED_CHAT_TYPES = ['general', 'business', 'persona'];
+
+const parseSampleEmails = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        return [];
+    }
+};
 
 // Get chat conversations for user
 export async function GET(request) {
@@ -16,8 +25,7 @@ export async function GET(request) {
             `SELECT id, chat_type, title, created_at, updated_at
              FROM chat_conversations
              WHERE user_id = $1
-             ORDER BY updated_at DESC
-             LIMIT 50`,
+             ORDER BY updated_at DESC`,
             [user.id]
         );
 
@@ -43,6 +51,13 @@ export async function POST(request) {
         if (!message || !chatType) {
             return NextResponse.json(
                 { error: 'Message and chat type are required' },
+                { status: 400 }
+            );
+        }
+
+        if (!ALLOWED_CHAT_TYPES.includes(chatType)) {
+            return NextResponse.json(
+                { error: 'Unsupported chat type' },
                 { status: 400 }
             );
         }
@@ -117,47 +132,79 @@ Answer questions based on this information. Be concise and helpful.`;
             }
         }
 
-        // Get organization's API key or use global default
-        const apiKeyResult = await client.query(
-            `SELECT openai_api_key FROM org_api_keys WHERE org_id = $1`,
-            [user.org_id]
-        );
-
-        let apiKey = process.env.OPENAI_API_KEY; // Global default
-        if (apiKeyResult.rows.length > 0) {
-            apiKey = apiKeyResult.rows[0].openai_api_key; // Organization-specific key
-        }
-
-        if (!apiKey) {
-            await client.query('ROLLBACK');
-            client.release();
-            return NextResponse.json(
-                { error: 'No API key configured. Please ask your admin to add an OpenAI API key in settings.' },
-                { status: 400 }
+        if (chatType === 'persona') {
+            const profileResult = await client.query(
+                `SELECT * FROM voice_profiles WHERE user_id = $1 AND is_trained = true LIMIT 1`,
+                [user.id]
             );
+
+            if (profileResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                client.release();
+                return NextResponse.json(
+                    { error: 'No voice profile found. Please complete voice training first.' },
+                    { status: 400 }
+                );
+            }
+
+            const profile = profileResult.rows[0];
+            const sampleEmails = parseSampleEmails(profile.sample_emails)
+                .filter((sample) => typeof sample === 'string' && sample.trim().length > 0)
+                .slice(0, 3)
+                .map((sample) => sample.trim().slice(0, 1200));
+
+            let writingStyle = profile.writing_style || {};
+            if (typeof writingStyle === 'string') {
+                try {
+                    writingStyle = JSON.parse(writingStyle);
+                } catch (error) {
+                    writingStyle = {};
+                }
+            }
+            const commonPhrases = Array.isArray(writingStyle.common_phrases)
+                ? writingStyle.common_phrases.slice(0, 8).join(', ')
+                : '';
+
+            const samplesBlock = sampleEmails.length > 0
+                ? `SAMPLE EMAILS (style reference only, do not quote directly):
+${sampleEmails.map((sample, index) => `Sample ${index + 1}:\n${sample}`).join('\n\n')}`
+                : 'No sample emails available.';
+
+            systemPrompt = `You are an AI persona that answers questions in the user's voice. Write as the user would, using first-person when appropriate. Keep responses concise, natural, and confident. Do not mention that you are an AI or refer to the samples.
+
+Voice Profile:
+- Tone: ${profile.tone || 'professional'}
+- Formality: ${profile.formality_level || 3}/5
+- Typical greeting: ${writingStyle.greeting || 'Hi'}
+- Typical closing: ${writingStyle.closing || 'Best'}
+- Sentence length: ${writingStyle.sentence_length || 'medium'}
+- Emoji usage: ${writingStyle.emoji_usage || 'rarely'}
+- Exclamation usage: ${writingStyle.exclamation_usage || 'sometimes'}
+- Common phrases: ${commonPhrases || 'n/a'}
+
+${samplesBlock}`;
         }
 
-        // Create OpenAI client with the appropriate API key
-        const openaiClient = new OpenAI({ apiKey });
-
-        // Call OpenAI API
-        const completion = await openaiClient.chat.completions.create({
-            model: 'gpt-4-turbo-preview',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                ...messages
-            ],
+        const completion = await generateChatResponse({
+            orgId: user.org_id,
+            systemPrompt,
+            messages,
             temperature: 0.7,
-            max_tokens: 1000,
+            maxTokens: 1000,
         });
 
-        const assistantMessage = completion.choices[0].message.content;
+        const assistantMessage = completion.content || '';
+        const formattedAssistantMessage = formatAssistantMessage(assistantMessage);
 
         // Save assistant response
         await client.query(
             `INSERT INTO chat_messages (conversation_id, role, content, metadata)
              VALUES ($1, 'assistant', $2, $3)`,
-            [convId, assistantMessage, JSON.stringify({ model: 'gpt-4-turbo-preview' })]
+            [
+                convId,
+                assistantMessage,
+                JSON.stringify({ provider: completion.provider, model: completion.model }),
+            ]
         );
 
         // Update conversation timestamp
@@ -171,11 +218,17 @@ Answer questions based on this information. Be concise and helpful.`;
         return NextResponse.json({
             success: true,
             conversationId: convId,
-            message: assistantMessage
+            message: formattedAssistantMessage
         });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Chat error:', error);
+        if (error?.message?.includes('AI API key')) {
+            return NextResponse.json(
+                { error: 'AI API key is invalid or missing. Please update your API key in settings.' },
+                { status: 400 }
+            );
+        }
         return NextResponse.json(
             { error: error.message || 'Failed to process chat' },
             { status: 500 }

@@ -107,7 +107,16 @@ export default function AutomationsPage() {
 
                             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 font-inter">
                                 <Zap className="h-4 w-4" />
-                                {JSON.parse(automation.steps || '[]').length} steps
+                                {(() => {
+                                    try {
+                                        const steps = Array.isArray(automation.steps)
+                                            ? automation.steps
+                                            : JSON.parse(automation.steps || '[]');
+                                        return `${steps.length} steps`;
+                                    } catch (error) {
+                                        return '0 steps';
+                                    }
+                                })()}
                             </div>
                         </div>
                     ))}

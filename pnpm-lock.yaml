@@ -126,6 +126,12 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.32.1
+        version: 0.32.1
+      '@google/generative-ai':
+        specifier: ^0.21.0
+        version: 0.21.0
       '@tanstack/react-query':
         specifier: ^5.59.3
         version: 5.90.12(react@18.3.1)
@@ -135,9 +141,15 @@ importers:
       better-sqlite3:
         specifier: ^12.5.0
         version: 12.5.0
+      buffer-equal-constant-time:
+        specifier: ^1.0.1
+        version: 1.0.1
       cron-parser:
         specifier: ^5.4.0
         version: 5.4.0
+      ecdsa-sig-formatter:
+        specifier: ^1.0.11
+        version: 1.0.11
       googleapis:
         specifier: ^128.0.0
         version: 128.0.0
@@ -150,12 +162,42 @@ importers:
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.3
+      jwa:
+        specifier: ^1.4.2
+        version: 1.4.2
+      jws:
+        specifier: ^3.2.2
+        version: 3.2.3
+      lodash.includes:
+        specifier: ^4.3.0
+        version: 4.3.0
+      lodash.isboolean:
+        specifier: ^3.0.3
+        version: 3.0.3
+      lodash.isinteger:
+        specifier: ^4.0.4
+        version: 4.0.4
+      lodash.isnumber:
+        specifier: ^3.0.3
+        version: 3.0.3
+      lodash.isplainobject:
+        specifier: ^4.0.6
+        version: 4.0.6
+      lodash.isstring:
+        specifier: ^4.0.1
+        version: 4.0.1
+      lodash.once:
+        specifier: ^4.0.0
+        version: 4.1.1
       lucide-react:
         specifier: ^0.294.0
         version: 0.294.0(react@18.3.1)
       mailparser:
         specifier: ^3.9.1
         version: 3.9.1
+      ms:
+        specifier: ^2.1.3
+        version: 2.1.3
       next:
         specifier: 14.0.0
         version: 14.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -177,6 +219,12 @@ importers:
       react-dom:
         specifier: ^18
         version: 18.3.1(react@18.3.1)
+      safe-buffer:
+        specifier: ^5.2.1
+        version: 5.2.1
+      semver:
+        specifier: ^7.6.3
+        version: 7.7.3
       simple-parser:
         specifier: ^0.0.0
         version: 0.0.0
@@ -244,6 +292,9 @@ packages:
   '@angular-devkit/schematics@17.3.11':
     resolution: {integrity: sha512-I5wviiIqiFwar9Pdk30Lujk8FczEEc18i22A5c6Z9lbmhPQdTroDnEQdsfXjy404wPe8H62s0I15o4pmMGfTYQ==}
     engines: {node: ^18.13.0 || >=20.9.0, npm: ^6.11.0 || ^7.5.6 || >=8.0.0, yarn: '>= 1.13.0'}
+
+  '@anthropic-ai/sdk@0.32.1':
+    resolution: {integrity: sha512-U9JwTrDvdQ9iWuABVsMLj8nJVwAyQz6QXvgLsVhryhCEPkLsbcP/MXxm+jYcAwLoV8ESbaTTjnD4kuAFa+Hyjg==}
 
   '@aws-crypto/sha256-browser@5.2.0':
     resolution: {integrity: sha512-AXfN/lGotSQwu6HNcEsIASo7kWXZ5HYWvfOmSNKDsEqC4OashTp8alTmaz+F7TC2L083SFv5RdB+qU3Vs1kZqw==}
@@ -564,6 +615,10 @@ packages:
   '@eslint/js@8.57.1':
     resolution: {integrity: sha512-d9zaMRSTIKDLhctzH12MtXvJKSSUhaHcjV+2Z+GK+EEY7XKpP5yR4x+N3TAcHTcu963nIr+TMcCb4DBCYX1z6Q==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+
+  '@google/generative-ai@0.21.0':
+    resolution: {integrity: sha512-7XhUbtnlkSEZK15kN3t+tzIMxsbKm/dSkKBFalj+20NvPKe1kBY7mR2P7vuijEn+f06z5+A8bVGKO0v39cr6Wg==}
+    engines: {node: '>=18.0.0'}
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -4895,6 +4950,18 @@ snapshots:
     transitivePeerDependencies:
       - chokidar
 
+  '@anthropic-ai/sdk@0.32.1':
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
   '@aws-crypto/sha256-browser@5.2.0':
     dependencies:
       '@aws-crypto/sha256-js': 5.2.0
@@ -5499,6 +5566,8 @@ snapshots:
       - supports-color
 
   '@eslint/js@8.57.1': {}
+
+  '@google/generative-ai@0.21.0': {}
 
   '@humanwhocodes/config-array@0.13.0':
     dependencies:

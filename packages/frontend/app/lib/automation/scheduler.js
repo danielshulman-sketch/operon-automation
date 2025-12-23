@@ -1,17 +1,25 @@
 import cron from 'node-cron';
 import { query, getClient } from '@/utils/db';
 import { executeAutomation } from './engine';
+import { performBackup } from '../backup';
 import { emailIntegration } from '../integrations/email';
-import { decrypt } from './encryption';
+import { decryptValue } from './encryption';
+import { ensureAutomationTables } from '@/utils/ensure-automation-tables';
 
-let scheduledTasks = {};
+let isSchedulerRunning = false;
 
 /**
  * Initialize the scheduler
  * This should be called when the server starts (e.g., in instrumentation.js or a separate worker)
  */
 export function initScheduler() {
+    if (isSchedulerRunning) {
+        console.log('Scheduler already running, skipping initialization.');
+        return;
+    }
+
     console.log('Initializing automation scheduler...');
+    isSchedulerRunning = true;
 
     // Run every minute to check for scheduled triggers and email triggers
     // In a production serverless env, this would be an external cron triggering an API route
@@ -24,6 +32,16 @@ export function initScheduler() {
             console.error('Scheduler error:', error);
         }
     });
+
+    // Run system backup every 30 minutes
+    console.log('Scheduling backups (every 30 mins)...');
+    cron.schedule('*/30 * * * *', async () => {
+        try {
+            await performBackup();
+        } catch (error) {
+            console.error('Scheduled backup error:', error);
+        }
+    });
 }
 
 /**
@@ -32,6 +50,7 @@ export function initScheduler() {
 async function processEmailTriggers() {
     const client = await getClient();
     try {
+        await ensureAutomationTables();
         // Find active automations with email_received trigger
         const result = await client.query(
             `SELECT id, org_id, trigger_config, steps 
@@ -51,7 +70,7 @@ async function processEmailTriggers() {
                 if (credResult.rows.length === 0) continue;
 
                 const encryptedCreds = credResult.rows[0].credentials;
-                const credentials = JSON.parse(decrypt(JSON.stringify(encryptedCreds)));
+                const credentials = JSON.parse(decryptValue(encryptedCreds));
 
                 // Check for new emails using the integration
                 // We need to store the last checked ID/date to avoid duplicates
@@ -70,23 +89,21 @@ async function processEmailTriggers() {
                 });
 
                 if (checkResult.emails && checkResult.emails.length > 0) {
+                    // Import email parser for rich data extraction
+                    const { extractEmailMetadata } = await import('./email-parser');
+
                     // Trigger for each new email
                     for (const email of checkResult.emails) {
                         console.log(`Triggering automation ${automation.id} for email ${email.id}`);
 
-                        // Execute automation
+                        // Extract rich email data
+                        const emailData = extractEmailMetadata(email);
+
+                        // Execute automation with enhanced email context
                         await executeAutomation(
-                            `auto_email_${email.id}_${Date.now()}`, // Temporary run ID generation pattern
-                            automation, // Pass full automation object
-                            {
-                                email: {
-                                    subject: email.subject,
-                                    from: email.from,
-                                    to: email.to,
-                                    body: email.text,
-                                    html: email.html
-                                }
-                            },
+                            `auto_email_${email.id}_${Date.now()}`,
+                            automation,
+                            { email: emailData },
                             automation.org_id
                         );
                     }
@@ -107,6 +124,7 @@ async function processEmailTriggers() {
 async function processScheduledTriggers() {
     const client = await getClient();
     try {
+        await ensureAutomationTables();
         // Find active automations with scheduled trigger
         const result = await client.query(
             `SELECT id, org_id, name, trigger_config, steps 

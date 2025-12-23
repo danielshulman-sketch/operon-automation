@@ -1,6 +1,7 @@
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { query } from './db';
+import { ensureSuperadminColumn } from './ensure-superadmin-column';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
@@ -25,10 +26,16 @@ export function verifyToken(token) {
 }
 
 export async function getUserFromToken(token) {
+    console.log('[getUserFromToken] Starting, token length:', token?.length);
     const payload = verifyToken(token);
+    console.log('[getUserFromToken] Payload:', payload ? 'exists' : 'null');
+
     if (!payload || !payload.userId) {
+        console.log('[getUserFromToken] No payload or userId');
         return null;
     }
+
+    await ensureSuperadminColumn();
 
     const result = await query(
         `SELECT u.*, om.org_id, om.role, om.is_admin, om.is_active, 
@@ -40,22 +47,32 @@ export async function getUserFromToken(token) {
         [payload.userId]
     );
 
+    console.log('[getUserFromToken] Query result rows:', result.rows.length);
     return result.rows[0] || null;
 }
 
 export async function requireAuth(request) {
+    console.log('[requireAuth] Starting...');
     const authHeader = request.headers.get('authorization');
+    console.log('[requireAuth] Auth header exists:', !!authHeader);
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('[requireAuth] No valid auth header');
         throw new Error('Unauthorized');
     }
 
     const token = authHeader.substring(7);
+    console.log('[requireAuth] Token extracted, length:', token.length);
+
     const user = await getUserFromToken(token);
+    console.log('[requireAuth] User from token:', user ? user.id : 'null');
 
     if (!user) {
+        console.log('[requireAuth] No user found');
         throw new Error('Unauthorized');
     }
 
+    console.log('[requireAuth] Success!');
     return user;
 }
 

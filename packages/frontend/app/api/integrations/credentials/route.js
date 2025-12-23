@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
-import { encrypt } from '@/lib/automation/encryption';
+import { encrypt } from '../../../../lib/automation/encryption';
+import { ensureIntegrationCredentialsTable } from '@/utils/ensure-integration-credentials';
 
 // Save integration credentials
 export async function POST(request) {
     try {
         const user = await requireAuth(request);
+        await ensureIntegrationCredentialsTable();
         const { integrationName, credentials } = await request.json();
 
         if (!integrationName || !credentials) {
@@ -45,6 +47,7 @@ export async function POST(request) {
 export async function DELETE(request) {
     try {
         const user = await requireAuth(request);
+        await ensureIntegrationCredentialsTable();
         const { searchParams } = new URL(request.url);
         const integrationName = searchParams.get('integration');
 

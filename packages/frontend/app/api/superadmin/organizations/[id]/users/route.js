@@ -212,7 +212,7 @@ export async function PUT(request, { params }) {
         // Update password
         await query(
             `UPDATE auth_accounts 
-             SET password_hash = $1, updated_at = NOW()
+             SET password_hash = $1
              WHERE user_id = $2 AND provider = 'email'`,
             [passwordHash, userId]
         );
@@ -284,4 +284,3 @@ export async function DELETE(request, { params }) {
         );
     }
 }
-

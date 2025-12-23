@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { query, getClient } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
 import { executeAutomation } from '@/lib/automation/engine';
+import { ensureAutomationTables } from '@/utils/ensure-automation-tables';
 
 // Manually execute automation
 export async function POST(request, { params }) {
@@ -9,6 +10,7 @@ export async function POST(request, { params }) {
 
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
         const { id } = params;
         const { triggerData } = await request.json();
 

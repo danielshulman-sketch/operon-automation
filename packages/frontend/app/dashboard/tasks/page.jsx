@@ -5,7 +5,9 @@ import { CheckSquare, Circle, CheckCircle2, Clock, AlertCircle, Plus, X } from '
 
 export default function TasksPage() {
     const [tasks, setTasks] = useState([]);
+    const [user, setUser] = useState(null);
     const [filter, setFilter] = useState('all');
+    const [priorityFilter, setPriorityFilter] = useState('all');
     const [loading, setLoading] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newTask, setNewTask] = useState({
@@ -15,33 +17,96 @@ export default function TasksPage() {
         dueDate: ''
     });
     const [creating, setCreating] = useState(false);
+    const [updatingPriorityId, setUpdatingPriorityId] = useState(null);
+    const [teamMembers, setTeamMembers] = useState([]);
 
-    const filters = [
+    const statusFilters = [
         { id: 'all', label: 'All' },
         { id: 'pending', label: 'Pending' },
         { id: 'in_progress', label: 'In Progress' },
         { id: 'completed', label: 'Completed' },
     ];
 
+    const priorityFilters = [
+        { id: 'all', label: 'All Priorities' },
+        { id: 'high', label: 'High' },
+        { id: 'medium', label: 'Medium' },
+        { id: 'low', label: 'Low' },
+    ];
+
     useEffect(() => {
-        fetchTasks();
-    }, [filter]);
+        fetchUser();
+    }, []);
+
+    useEffect(() => {
+        if (user) {
+            fetchTasks();
+            if (user.isAdmin) {
+                fetchTeamMembers();
+            }
+        }
+    }, [user]);
+
+    const fetchUser = async () => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch('/api/auth/me', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                console.log('User data loaded:', data.user);
+                console.log('Is Admin:', data.user.isAdmin);
+                setUser(data.user);
+            } else {
+                console.error('Failed to fetch user, status:', res.status);
+            }
+        } catch (error) {
+            console.error('Failed to fetch user:', error);
+        }
+    };
+
+    const fetchTeamMembers = async () => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch('/api/admin/users', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                console.log('Team members loaded:', data.users?.length || 0, 'members');
+                setTeamMembers(data.users || []);
+            } else {
+                console.error('Failed to fetch team members, status:', res.status);
+            }
+        } catch (error) {
+            console.error('Failed to fetch team members:', error);
+        }
+    };
 
     const fetchTasks = async () => {
         setLoading(true);
         try {
             const token = localStorage.getItem('auth_token');
-            const url = filter === 'all'
-                ? '/api/tasks'
-                : `/api/tasks?status=${filter}`;
+            // Always fetch all org tasks
+            const url = '/api/tasks';
+
+            console.log('Fetching tasks from:', url, 'User isAdmin:', user?.isAdmin, 'Filter:', filter);
 
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
+            console.log('Tasks response status:', res.status);
+
             if (res.ok) {
                 const data = await res.json();
-                setTasks(data.tasks);
+                console.log('Tasks received:', data.tasks?.length || 0, 'tasks');
+                setTasks(data.tasks || []);
+            } else {
+                console.error('Failed to fetch tasks, status:', res.status);
+                const errorData = await res.json();
+                console.error('Error details:', errorData);
             }
         } catch (error) {
             console.error('Failed to fetch tasks:', error);
@@ -50,9 +115,14 @@ export default function TasksPage() {
     };
 
     const updateTaskStatus = async (taskId, newStatus) => {
+        // Optimistically update UI using functional setState
+        setTasks(prevTasks => prevTasks.map(t =>
+            t.id === taskId ? { ...t, status: newStatus } : t
+        ));
+
         try {
             const token = localStorage.getItem('auth_token');
-            await fetch(`/api/tasks/${taskId}`, {
+            const res = await fetch(`/api/tasks/${taskId}`, {
                 method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -61,9 +131,14 @@ export default function TasksPage() {
                 body: JSON.stringify({ status: newStatus }),
             });
 
-            fetchTasks();
+            if (!res.ok) {
+                // Revert on error
+                fetchTasks();
+            }
         } catch (error) {
             console.error('Failed to update task:', error);
+            // Revert on error
+            fetchTasks();
         }
     };
 
@@ -101,6 +176,69 @@ export default function TasksPage() {
         return colors[priority] || colors.medium;
     };
 
+    const updateTaskPriority = async (taskId, newPriority) => {
+        // Optimistically update UI using functional setState
+        setTasks(prevTasks => prevTasks.map(t =>
+            t.id === taskId ? { ...t, priority: newPriority } : t
+        ));
+
+        setUpdatingPriorityId(taskId);
+        try {
+            const token = localStorage.getItem('auth_token');
+            await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ priority: newPriority }),
+            });
+        } catch (error) {
+            console.error('Failed to update priority:', error);
+            // Revert on error
+            fetchTasks();
+        } finally {
+            setUpdatingPriorityId(null);
+        }
+    };
+
+    const updateTaskAssignment = async (taskId, userId) => {
+        console.log('Assigning task:', taskId, 'to user:', userId);
+
+        // Optimistically update UI using functional setState
+        setTasks(prevTasks => prevTasks.map(t =>
+            t.id === taskId ? { ...t, assigned_to: userId || null } : t
+        ));
+
+        try {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch(`/api/tasks/${taskId}`, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ assignedTo: userId || null }),
+            });
+
+            console.log('Assignment response status:', res.status);
+
+            if (res.ok) {
+                alert('Assignment saved successfully!');
+            } else {
+                const errorData = await res.json();
+                console.error('Assignment failed:', errorData);
+                alert(`Assignment failed: ${errorData.details || errorData.error || 'Unknown error'}`);
+                // Revert on error
+                fetchTasks();
+            }
+        } catch (error) {
+            console.error('Failed to update assignment:', error);
+            // Revert on error
+            fetchTasks();
+        }
+    };
+
     const getStatusIcon = (status) => {
         const icons = {
             pending: <Circle className="h-5 w-5 text-gray-400" />,
@@ -132,19 +270,37 @@ export default function TasksPage() {
             </div>
 
             {/* Filters */}
-            <div className="mb-6 flex flex-wrap gap-2">
-                {filters.map((f) => (
-                    <button
-                        key={f.id}
-                        onClick={() => setFilter(f.id)}
-                        className={`px-4 py-2 rounded-full font-plus-jakarta font-medium transition-all ${filter === f.id
-                            ? 'bg-black dark:bg-white text-white dark:text-black'
-                            : 'bg-[#F3F3F3] dark:bg-[#1E1E1E] text-gray-600 dark:text-gray-400 hover:bg-[#E6E6E6] dark:hover:bg-[#333333]'
-                            }`}
-                    >
-                        {f.label}
-                    </button>
-                ))}
+            <div className="mb-6 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 self-center mr-2">Status:</span>
+                    {statusFilters.map((f) => (
+                        <button
+                            key={f.id}
+                            onClick={() => setFilter(f.id)}
+                            className={`px-4 py-2 rounded-full font-plus-jakarta font-medium transition-all ${filter === f.id
+                                ? 'bg-black dark:bg-white text-white dark:text-black'
+                                : 'bg-[#F3F3F3] dark:bg-[#1E1E1E] text-gray-600 dark:text-gray-400 hover:bg-[#E6E6E6] dark:hover:bg-[#333333]'
+                                }`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400 self-center mr-2">Priority:</span>
+                    {priorityFilters.map((f) => (
+                        <button
+                            key={f.id}
+                            onClick={() => setPriorityFilter(f.id)}
+                            className={`px-4 py-2 rounded-full font-plus-jakarta font-medium transition-all ${priorityFilter === f.id
+                                ? 'bg-black dark:bg-white text-white dark:text-black'
+                                : 'bg-[#F3F3F3] dark:bg-[#1E1E1E] text-gray-600 dark:text-gray-400 hover:bg-[#E6E6E6] dark:hover:bg-[#333333]'
+                                }`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Task List */}
@@ -153,64 +309,122 @@ export default function TasksPage() {
                     <div className="text-center py-12">
                         <p className="text-gray-600 dark:text-gray-400 font-inter">Loading tasks...</p>
                     </div>
-                ) : tasks.length === 0 ? (
-                    <div className="text-center py-12 rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E]">
-                        <CheckSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-600 dark:text-gray-400 font-inter">No tasks found</p>
-                    </div>
-                ) : (
-                    tasks.map((task) => (
-                        <div
-                            key={task.id}
-                            className="rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] p-6 hover:border-black dark:hover:border-white transition-all"
-                        >
-                            <div className="flex items-start gap-4">
-                                <button
-                                    onClick={() => {
-                                        const nextStatus = task.status === 'completed' ? 'pending' :
-                                            task.status === 'pending' ? 'in_progress' : 'completed';
-                                        updateTaskStatus(task.id, nextStatus);
-                                    }}
-                                    className="flex-shrink-0 mt-1"
-                                >
-                                    {getStatusIcon(task.status)}
-                                </button>
+                ) : (() => {
+                    // Apply filters
+                    let filteredTasks = tasks;
 
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-4 mb-2">
-                                        <h3 className="font-sora font-bold text-lg text-black dark:text-white">
-                                            {task.title}
-                                        </h3>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            {task.priority && (
-                                                <span
-                                                    className={`px-3 py-1 rounded-full text-xs font-plus-jakarta font-semibold ${getPriorityColor(
-                                                        task.priority
+                    // Status filter
+                    if (filter !== 'all') {
+                        filteredTasks = filteredTasks.filter(task => task.status === filter);
+                    }
+
+                    // Priority filter
+                    if (priorityFilter !== 'all') {
+                        filteredTasks = filteredTasks.filter(task => task.priority === priorityFilter);
+                    }
+
+                    console.log('Filtered tasks:', filteredTasks.length, 'of', tasks.length);
+
+                    return filteredTasks.length === 0 ? (
+                        <div className="text-center py-12 rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E]">
+                            <CheckSquare className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                            <p className="text-gray-600 dark:text-gray-400 font-inter">No tasks found</p>
+                        </div>
+                    ) : (
+                        filteredTasks.map((task) => (
+                            <div
+                                key={task.id}
+                                className="rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] p-6 hover:border-black dark:hover:border-white transition-all"
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className="flex-shrink-0 mt-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={task.status === 'completed'}
+                                            onChange={(e) => updateTaskStatus(task.id, e.target.checked ? 'completed' : 'pending')}
+                                            className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-black dark:text-white focus:ring-black dark:focus:ring-white cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="flex-shrink-0 mt-0">
+                                        <select
+                                            value={task.status}
+                                            onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                                            className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1E1E1E] text-black dark:text-white text-sm font-medium focus:outline-none focus:border-black dark:focus:border-white cursor-pointer"
+                                        >
+                                            <option value="pending">Pending</option>
+                                            <option value="in_progress">In Progress</option>
+                                            <option value="completed">Completed</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-4 mb-2">
+                                            <div className="flex-1">
+                                                <h3 className="font-sora font-bold text-lg text-black dark:text-white">
+                                                    {task.title}
+                                                </h3>
+                                                {user?.isAdmin && (task.user_email || task.first_name) && (
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                                        Assigned to: {task.first_name ? `${task.first_name} ${task.last_name || ''}` : task.user_email}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <select
+                                                    aria-label="Task priority"
+                                                    value={task.priority ? String(task.priority) : 'medium'}
+                                                    onChange={(e) => {
+                                                        console.log('Priority changed to:', e.target.value);
+                                                        updateTaskPriority(task.id, e.target.value);
+                                                    }}
+                                                    disabled={updatingPriorityId === task.id}
+                                                    className={`px-3 py-1 rounded-full text-xs font-plus-jakarta font-semibold focus:outline-none cursor-pointer text-black dark:text-white ${getPriorityColor(
+                                                        task.priority || 'medium'
                                                     )}`}
                                                 >
-                                                    {task.priority}
-                                                </span>
-                                            )}
-                                            {task.due_date && (
-                                                <span className="text-sm text-gray-500 dark:text-gray-400 font-inter">
-                                                    Due: {new Date(task.due_date).toLocaleDateString()}
-                                                </span>
-                                            )}
+                                                    <option value="low" className="text-black">Low priority</option>
+                                                    <option value="medium" className="text-black">Medium priority</option>
+                                                    <option value="high" className="text-black">High priority</option>
+                                                </select>
+                                                {user?.isAdmin && (
+                                                    <select
+                                                        aria-label="Assign to user"
+                                                        value={task.assigned_to ? String(task.assigned_to) : ''}
+                                                        onChange={(e) => {
+                                                            console.log('Dropdown changed, new value:', e.target.value);
+                                                            updateTaskAssignment(task.id, e.target.value);
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1E1E1E] text-black dark:text-white text-sm font-medium focus:outline-none focus:border-black dark:focus:border-white cursor-pointer"
+                                                    >
+                                                        <option value="" className="text-black">Unassigned</option>
+                                                        {teamMembers.map((member) => (
+                                                            <option key={member.id} value={String(member.id)} className="text-black">
+                                                                {member.first_name ? `${member.first_name} ${member.last_name || ''}` : member.email}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                {task.due_date && (
+                                                    <span className="text-sm text-gray-500 dark:text-gray-400 font-inter">
+                                                        Due: {new Date(task.due_date).toLocaleDateString()}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                    {task.description && (
-                                        <p className="text-gray-600 dark:text-gray-400 font-inter mb-2">
-                                            {task.description}
+                                        {task.description && (
+                                            <p className="text-gray-600 dark:text-gray-400 font-inter mb-2">
+                                                {task.description}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-gray-500 dark:text-gray-500 font-inter">
+                                            Created {new Date(task.created_at).toLocaleDateString()}
                                         </p>
-                                    )}
-                                    <p className="text-xs text-gray-500 dark:text-gray-500 font-inter">
-                                        Created {new Date(task.created_at).toLocaleDateString()}
-                                    </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
-                )}
+                        ))
+                    );
+                })()}
             </div>
 
             {/* Create Task Modal */}
@@ -302,7 +516,8 @@ export default function TasksPage() {
                         </form>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

@@ -94,45 +94,84 @@ export async function POST(request) {
             [email]
         );
 
+        let user;
+        let userId;
+
         if (existingUser.rows.length > 0) {
-            return NextResponse.json(
-                { error: 'User already exists' },
-                { status: 400 }
+            userId = existingUser.rows[0].id;
+
+            // Ensure user isn't already in this organization
+            const membershipCheck = await query(
+                `SELECT id FROM org_members WHERE org_id = $1 AND user_id = $2`,
+                [admin.org_id, userId]
+            );
+
+            if (membershipCheck.rows.length > 0) {
+                return NextResponse.json(
+                    { error: 'User is already part of this organization' },
+                    { status: 400 }
+                );
+            }
+
+            if (password) {
+                if (password.length < 8) {
+                    return NextResponse.json(
+                        { error: 'Password must be at least 8 characters' },
+                        { status: 400 }
+                    );
+                }
+
+                const passwordHash = await hashPassword(password);
+                await query(
+                    `UPDATE auth_accounts 
+                     SET password_hash = $1
+                     WHERE user_id = $2 AND provider = 'email'`,
+                    [passwordHash, userId]
+                );
+            }
+
+            const userInfo = await query(
+                `SELECT id, email, first_name, last_name FROM users WHERE id = $1`,
+                [userId]
+            );
+            user = userInfo.rows[0];
+        } else {
+            if (!password || password.length < 8) {
+                return NextResponse.json(
+                    { error: 'Password must be at least 8 characters' },
+                    { status: 400 }
+                );
+            }
+
+            const passwordHash = await hashPassword(password);
+
+            const userResult = await query(
+                `INSERT INTO users (email, first_name, last_name)
+                 VALUES ($1, $2, $3)
+                 RETURNING id, email, first_name, last_name, created_at`,
+                [email, firstName || null, lastName || null]
+            );
+
+            user = userResult.rows[0];
+            userId = user.id;
+
+            await query(
+                `INSERT INTO auth_accounts (user_id, provider, password_hash)
+                 VALUES ($1, 'email', $2)`,
+                [userId, passwordHash]
             );
         }
 
-        // Hash password
-        const passwordHash = await hashPassword(password);
-
-        // Create user
-        const userResult = await query(
-            `INSERT INTO users (email, first_name, last_name)
-       VALUES ($1, $2, $3)
-       RETURNING id, email, first_name, last_name, created_at`,
-            [email, firstName || null, lastName || null]
-        );
-
-        const user = userResult.rows[0];
-
-        // Create auth account
-        await query(
-            `INSERT INTO auth_accounts (user_id, provider, password_hash)
-       VALUES ($1, 'email', $2)`,
-            [user.id, passwordHash]
-        );
-
-        // Add to organization
         await query(
             `INSERT INTO org_members (org_id, user_id, role, is_admin, is_active)
-       VALUES ($1, $2, $3, $4, true)`,
-            [admin.org_id, user.id, role || 'member', isAdmin || false]
+             VALUES ($1, $2, $3, $4, true)`,
+            [admin.org_id, userId, role || 'member', isAdmin || false]
         );
 
-        // Log activity
         await query(
             `INSERT INTO user_activity (org_id, user_id, activity_type, description)
-       VALUES ($1, $2, 'user_created', $3)`,
-            [admin.org_id, admin.id, `Admin created user: ${email}`]
+             VALUES ($1, $2, 'user_created', $3)`,
+            [admin.org_id, admin.id, `Admin added user ${email} to organization`]
         );
 
         return NextResponse.json({
@@ -187,7 +226,7 @@ export async function PUT(request) {
             // Update password
             await query(
                 `UPDATE auth_accounts 
-                 SET password_hash = $1, updated_at = NOW()
+                 SET password_hash = $1
                  WHERE user_id = $2 AND provider = 'email'`,
                 [passwordHash, userId]
             );

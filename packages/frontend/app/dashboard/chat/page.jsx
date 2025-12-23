@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Send, Bot, Briefcase, Plus, Loader2 } from 'lucide-react';
+import { Send, Bot, Briefcase, Plus, Loader2, Trash2 } from 'lucide-react';
 import InfoTooltip from '../../components/InfoTooltip';
 
 export default function ChatPage() {
-    const [chatType, setChatType] = useState('general'); // 'general' or 'business'
+    const [chatType, setChatType] = useState('general'); // 'general' | 'business' | 'persona'
     const [conversations, setConversations] = useState([]);
     const [currentConversation, setCurrentConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [conversationFilter, setConversationFilter] = useState('all'); // 'all' | 'general' | 'business'
+    const [isDeleting, setIsDeleting] = useState(false);
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
@@ -130,7 +132,55 @@ export default function ChatPage() {
         setMessages([]);
     };
 
-    const filteredConversations = conversations.filter(c => c.chat_type === chatType);
+    const handleChatTypeChange = (type) => {
+        setChatType(type);
+        setConversationFilter(type);
+        startNewConversation();
+    };
+
+    const deleteConversation = async (conversationId) => {
+        if (isDeleting) return;
+        const confirmDelete = window.confirm('Delete this conversation? This action cannot be undone.');
+        if (!confirmDelete) return;
+
+        try {
+            setIsDeleting(true);
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch(`/api/chat/${conversationId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                alert(error.error || 'Failed to delete conversation');
+                return;
+            }
+
+            setConversations(prev => prev.filter(c => c.id !== conversationId));
+            if (currentConversation === conversationId) {
+                setCurrentConversation(null);
+                setMessages([]);
+            }
+            await fetchConversations();
+        } catch (error) {
+            console.error('Delete conversation error:', error);
+            alert('Failed to delete conversation');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const conversationFilters = [
+        { id: 'all', label: 'All chats' },
+        { id: 'general', label: 'General AI' },
+        { id: 'business', label: 'Business AI' },
+        { id: 'persona', label: 'Persona AI' },
+    ];
+
+    const filteredConversations = conversations.filter((c) =>
+        conversationFilter === 'all' ? true : c.chat_type === conversationFilter
+    );
 
     return (
         <div className="max-w-7xl mx-auto h-[calc(100vh-12rem)]">
@@ -141,7 +191,7 @@ export default function ChatPage() {
                         AI Assistant
                     </h1>
                     <InfoTooltip
-                        content="Chat with AI assistants. General AI helps with any questions. Business AI is trained on your company's knowledge base and can answer questions about your SOPs and documentation."
+                        content="Chat with AI assistants. General AI helps with any questions. Business AI is trained on your company's knowledge base. Persona AI responds in your writing voice."
                         position="right"
                     />
                 </div>
@@ -153,10 +203,7 @@ export default function ChatPage() {
             {/* Chat Type Tabs */}
             <div className="flex gap-2 mb-6">
                 <button
-                    onClick={() => {
-                        setChatType('general');
-                        startNewConversation();
-                    }}
+                    onClick={() => handleChatTypeChange('general')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-plus-jakarta font-semibold transition-all ${chatType === 'general'
                         ? 'bg-black dark:bg-white text-white dark:text-black'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -166,10 +213,7 @@ export default function ChatPage() {
                     General AI
                 </button>
                 <button
-                    onClick={() => {
-                        setChatType('business');
-                        startNewConversation();
-                    }}
+                    onClick={() => handleChatTypeChange('business')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-plus-jakarta font-semibold transition-all ${chatType === 'business'
                         ? 'bg-black dark:bg-white text-white dark:text-black'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -177,6 +221,16 @@ export default function ChatPage() {
                 >
                     <Briefcase className="h-5 w-5" />
                     Business AI
+                </button>
+                <button
+                    onClick={() => handleChatTypeChange('persona')}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-plus-jakarta font-semibold transition-all ${chatType === 'persona'
+                        ? 'bg-black dark:bg-white text-white dark:text-black'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                >
+                    <Bot className="h-5 w-5" />
+                    Persona AI
                 </button>
             </div>
 
@@ -197,6 +251,21 @@ export default function ChatPage() {
                         </button>
                     </div>
 
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {conversationFilters.map((filter) => (
+                            <button
+                                key={filter.id}
+                                onClick={() => setConversationFilter(filter.id)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-plus-jakarta font-semibold transition-all ${conversationFilter === filter.id
+                                    ? 'bg-black dark:bg-white text-white dark:text-black'
+                                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
+                            >
+                                {filter.label}
+                            </button>
+                        ))}
+                    </div>
+
                     <div className="space-y-2">
                         {filteredConversations.length === 0 ? (
                             <p className="text-sm text-gray-500 dark:text-gray-500 font-inter text-center py-4">
@@ -204,21 +273,54 @@ export default function ChatPage() {
                             </p>
                         ) : (
                             filteredConversations.map((conv) => (
-                                <button
+                                <div
                                     key={conv.id}
+                                    role="button"
+                                    tabIndex={0}
                                     onClick={() => setCurrentConversation(conv.id)}
-                                    className={`w-full text-left p-3 rounded-lg transition-colors ${currentConversation === conv.id
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setCurrentConversation(conv.id);
+                                        }
+                                    }}
+                                    className={`w-full p-3 rounded-lg transition-colors ${currentConversation === conv.id
                                         ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800'
                                         : 'hover:bg-gray-100 dark:hover:bg-gray-800'
                                         }`}
                                 >
-                                    <p className="font-inter text-sm text-black dark:text-white truncate">
-                                        {conv.title || 'New conversation'}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-500 font-inter mt-1">
-                                        {new Date(conv.updated_at).toLocaleDateString()}
-                                    </p>
-                                </button>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-inter text-sm text-black dark:text-white truncate">
+                                                {conv.title || 'New conversation'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteConversation(conv.id);
+                                            }}
+                                            disabled={isDeleting}
+                                            className="p-1 rounded-md hover:bg-white/40 dark:hover:bg-white/10 text-gray-500"
+                                            aria-label="Delete conversation"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2">
+                                        <p className="text-xs text-gray-500 dark:text-gray-500 font-inter">
+                                            {new Date(conv.updated_at).toLocaleDateString()}
+                                        </p>
+                                        <span className="text-xs uppercase font-semibold text-gray-600 dark:text-gray-400">
+                                            {conv.chat_type === 'business'
+                                                ? 'Business AI'
+                                                : conv.chat_type === 'persona'
+                                                    ? 'Persona AI'
+                                                    : 'General AI'}
+                                        </span>
+                                    </div>
+                                </div>
                             ))
                         )}
                     </div>
@@ -232,16 +334,24 @@ export default function ChatPage() {
                             <div className="flex flex-col items-center justify-center h-full text-center">
                                 {chatType === 'general' ? (
                                     <Bot className="h-16 w-16 text-gray-400 mb-4" />
-                                ) : (
+                                ) : chatType === 'business' ? (
                                     <Briefcase className="h-16 w-16 text-gray-400 mb-4" />
+                                ) : (
+                                    <Bot className="h-16 w-16 text-gray-400 mb-4" />
                                 )}
                                 <h3 className="text-xl font-sora font-bold text-black dark:text-white mb-2">
-                                    {chatType === 'general' ? 'General AI Assistant' : 'Business AI Assistant'}
+                                    {chatType === 'general'
+                                        ? 'General AI Assistant'
+                                        : chatType === 'business'
+                                            ? 'Business AI Assistant'
+                                            : 'Persona AI Assistant'}
                                 </h3>
                                 <p className="text-gray-600 dark:text-gray-400 font-inter max-w-md">
                                     {chatType === 'general'
                                         ? 'Ask me anything! I can help with general questions, explanations, and tasks.'
-                                        : 'Ask me about your company processes, SOPs, and documentation. I\'m trained on your knowledge base.'}
+                                        : chatType === 'business'
+                                            ? 'Ask me about your company processes, SOPs, and documentation. I\'m trained on your knowledge base.'
+                                            : 'Ask questions and get responses in your writing voice.'}
                                 </p>
                             </div>
                         ) : (
@@ -252,20 +362,27 @@ export default function ChatPage() {
                                 >
                                     {msg.role === 'assistant' && (
                                         <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center flex-shrink-0">
-                                            {chatType === 'general' ? (
-                                                <Bot className="h-4 w-4 text-white" />
-                                            ) : (
+                                            {chatType === 'business' ? (
                                                 <Briefcase className="h-4 w-4 text-white" />
+                                            ) : (
+                                                <Bot className="h-4 w-4 text-white" />
                                             )}
                                         </div>
                                     )}
                                     <div
                                         className={`max-w-[70%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                            ? 'bg-black dark:bg-white text-white dark:text-black'
-                                            : 'bg-gray-100 dark:bg-gray-800 text-black dark:text-white'
+                                            ? 'bg-white dark:bg-white text-black'
+                                            : 'bg-gray-100 dark:bg-white text-black'
                                             }`}
                                     >
-                                        <p className="font-inter text-sm whitespace-pre-wrap">{msg.content}</p>
+                                        {msg.role === 'assistant' ? (
+                                            <div
+                                                className="font-inter text-sm leading-relaxed space-y-3 ai-response text-black"
+                                                dangerouslySetInnerHTML={{ __html: msg.content }}
+                                            />
+                                        ) : (
+                                            <p className="font-inter text-sm whitespace-pre-wrap text-black">{msg.content}</p>
+                                        )}
                                     </div>
                                     {msg.role === 'user' && (
                                         <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
@@ -278,10 +395,10 @@ export default function ChatPage() {
                         {isLoading && (
                             <div className="flex gap-3 justify-start">
                                 <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center flex-shrink-0">
-                                    {chatType === 'general' ? (
-                                        <Bot className="h-4 w-4 text-white" />
-                                    ) : (
+                                    {chatType === 'business' ? (
                                         <Briefcase className="h-4 w-4 text-white" />
+                                    ) : (
+                                        <Bot className="h-4 w-4 text-white" />
                                     )}
                                 </div>
                                 <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 py-3">
@@ -299,7 +416,7 @@ export default function ChatPage() {
                                 type="text"
                                 value={inputMessage}
                                 onChange={(e) => setInputMessage(e.target.value)}
-                                placeholder={`Ask ${chatType === 'general' ? 'anything' : 'about your company'}...`}
+                                placeholder={`Ask ${chatType === 'general' ? 'anything' : chatType === 'business' ? 'about your company' : 'in your voice'}...`}
                                 disabled={isLoading}
                                 className="flex-1 px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-inter focus:outline-none focus:border-black dark:focus:border-white transition-colors disabled:opacity-50"
                             />

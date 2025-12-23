@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Run Migration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #0051cc;
+        }
+
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Add assigned_to Column Migration</h1>
+    <p>This will add the <code>assigned_to</code> column to the <code>detected_tasks</code> table.</p>
+
+    <button onclick="runMigration()">Run Migration</button>
+
+    <div id="result"></div>
+
+    <script>
+        async function runMigration() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Running migration...';
+            resultDiv.className = '';
+
+            try {
+                const res = await fetch('/api/migrate/add-assigned-to', {
+                    method: 'POST'
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    resultDiv.textContent = 'Success! ' + data.message + ' - You can now use task assignment!';
+                    resultDiv.className = 'success';
+                } else {
+                    resultDiv.textContent = 'Error: ' + (data.details || data.error);
+                    resultDiv.className = 'error';
+                }
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+                resultDiv.className = 'error';
+            }
+        }
+    </script>
+</body>
+
+</html>

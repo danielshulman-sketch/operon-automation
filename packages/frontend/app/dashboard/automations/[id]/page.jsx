@@ -11,15 +11,16 @@ export default function EditAutomationPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [executing, setExecuting] = useState(false);
+    const [isAddStepOpen, setIsAddStepOpen] = useState(false);
 
     const availableActions = [
-        { id: 'slack_send_message', name: 'Slack: Send Message', integration: 'slack' },
-        { id: 'slack_create_channel', name: 'Slack: Create Channel', integration: 'slack' },
-        { id: 'google_sheets_read_rows', name: 'Google Sheets: Read Rows', integration: 'google_sheets' },
-        { id: 'google_sheets_append_row', name: 'Google Sheets: Append Row', integration: 'google_sheets' },
-        { id: 'notion_create_page', name: 'Notion: Create Page', integration: 'notion' },
-        { id: 'stripe_create_customer', name: 'Stripe: Create Customer', integration: 'stripe' },
-        { id: 'email_send_email', name: 'Email: Send Email', integration: 'email' },
+        { id: 'slack_send_message', name: 'Slack: Send Message', integration: 'slack', icon: '💬', description: 'Send messages to channels or users' },
+        { id: 'slack_create_channel', name: 'Slack: Create Channel', integration: 'slack', icon: '💬', description: 'Create a new channel' },
+        { id: 'google_sheets_read_rows', name: 'Google Sheets: Read Rows', integration: 'google_sheets', icon: '📊', description: 'Read data from sheets' },
+        { id: 'google_sheets_append_row', name: 'Google Sheets: Append Row', integration: 'google_sheets', icon: '📊', description: 'Add new rows to sheets' },
+        { id: 'notion_create_page', name: 'Notion: Create Page', integration: 'notion', icon: '📝', description: 'Create new pages in database' },
+        { id: 'stripe_create_customer', name: 'Stripe: Create Customer', integration: 'stripe', icon: '💳', description: 'Create a new customer' },
+        { id: 'email_send_email', name: 'Email: Send Email', integration: 'email', icon: '📧', description: 'Send emails via SMTP' },
     ];
 
     useEffect(() => {
@@ -235,22 +236,30 @@ export default function EditAutomationPage() {
                     <h2 className="text-xl font-sora font-bold text-black dark:text-white">
                         Steps
                     </h2>
-                    <div className="relative group">
-                        <button className="px-4 py-2 rounded-lg bg-blue-600 text-white font-inter text-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
+                    <div className="relative">
+                        <button
+                            onClick={() => setIsAddStepOpen(!isAddStepOpen)}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-inter text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
                             <Plus className="h-4 w-4" />
                             Add Step
                         </button>
-                        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#1E1E1E] border border-[#E6E6E6] dark:border-[#333333] rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 max-h-96 overflow-y-auto">
-                            {availableActions.map((action) => (
-                                <button
-                                    key={action.id}
-                                    onClick={() => addStep(action.id)}
-                                    className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-inter text-black dark:text-white"
-                                >
-                                    {action.name}
-                                </button>
-                            ))}
-                        </div>
+                        {isAddStepOpen && (
+                            <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-[#1E1E1E] border border-[#E6E6E6] dark:border-[#333333] rounded-xl shadow-2xl transition-all z-10 max-h-96 overflow-y-auto">
+                                {availableActions.map((action) => (
+                                    <button
+                                        key={action.id}
+                                        onClick={() => {
+                                            addStep(action.id);
+                                            setIsAddStepOpen(false);
+                                        }}
+                                        className="w-full text-left px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-inter text-black dark:text-white"
+                                    >
+                                        {action.name}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 

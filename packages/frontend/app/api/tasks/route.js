@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
+import { ensureDetectedTasksAssignedColumn } from '@/utils/ensure-detected-tasks-columns';
 
 export async function GET(request) {
     try {
         const user = await requireAuth(request);
+        await ensureDetectedTasksAssignedColumn();
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status');
 
         let queryText = `
       SELECT * FROM detected_tasks
-      WHERE org_id = $1
+      WHERE org_id = $1 AND (user_id = $2 OR assigned_to = $2)
     `;
-        const params = [user.org_id];
+        const params = [user.org_id, user.id];
 
         if (status && status !== 'all') {
-            queryText += ` AND status = $2`;
+            queryText += ` AND status = $3`;
             params.push(status);
         }
 
@@ -36,6 +38,7 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const user = await requireAuth(request);
+        await ensureDetectedTasksAssignedColumn();
         const { title, description, priority, dueDate, emailMessageId } = await request.json();
 
         if (!title) {

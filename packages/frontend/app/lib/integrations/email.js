@@ -99,5 +99,15 @@ export const emailIntegration = {
             }
             throw error;
         }
+    },
+
+    async get_stats(credentials) {
+        // Email stats would require querying application database for sent/received counts
+        // For now, return placeholder
+        return {
+            sent: { total: 'Available in email stream' },
+            received: { total: 'Available in email stream' },
+            note: 'Email statistics are available in the Email Stream page'
+        };
     }
 };

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
+import { ensureAutomationTables } from '@/utils/ensure-automation-tables';
 
 // Get all automations for organization
 export async function GET(request) {
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
 
         const result = await query(
             `SELECT 
@@ -31,6 +33,7 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
         const { name, description, triggerType, triggerConfig, steps } = await request.json();
 
         if (!name || !triggerType) {

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Settings Page Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #0070f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #0051cc;
+        }
+
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 3px;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Settings Page Debugger</h1>
+
+    <div class="test-section">
+        <h2>1. Test Authentication</h2>
+        <button onclick="testAuth()">Test Auth Token</button>
+        <div id="authResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Test Email API</h2>
+        <button onclick="testEmailAPI()">Test Email Connect API</button>
+        <div id="emailResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Test Database</h2>
+        <button onclick="testDatabase()">Test Database Connection</button>
+        <div id="dbResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Browser Console</h2>
+        <p>Press F12 to open the browser console and check for any errors.</p>
+        <button onclick="testConsole()">Test Console Logging</button>
+    </div>
+
+    <script>
+        async function testAuth() {
+            const result = document.getElementById('authResult');
+            try {
+                const token = localStorage.getItem('auth_token');
+                if (!token) {
+                    result.innerHTML = '<span class="error">No auth token found! Please log in first.</span>';
+                    return;
+                }
+
+                const res = await fetch('/api/auth/me', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    result.innerHTML = `<span class="success">✓ Authenticated as: ${data.user.email}</span>`;
+                } else {
+                    result.innerHTML = `<span class="error">✗ Auth failed: ${res.status}</span>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">✗ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testEmailAPI() {
+            const result = document.getElementById('emailResult');
+            try {
+                const token = localStorage.getItem('auth_token');
+                const res = await fetch('/api/email/connect', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    result.innerHTML = `<span class="success">✓ Email API working. Mailboxes: ${data.mailboxes?.length || 0}</span>`;
+                } else {
+                    const error = await res.json();
+                    result.innerHTML = `<span class="error">✗ API Error: ${error.error || error.details}</span>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">✗ Error: ${error.message}</span>`;
+            }
+        }
+
+        async function testDatabase() {
+            const result = document.getElementById('dbResult');
+            try {
+                const res = await fetch('/api/test-db');
+                const data = await res.json();
+
+                if (res.ok) {
+                    result.innerHTML = `<span class="success">✓ Database connected: ${data.timestamp}</span>`;
+                } else {
+                    result.innerHTML = `<span class="error">✗ DB Error: ${data.details}</span>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<span class="error">✗ Error: ${error.message}</span>`;
+            }
+        }
+
+        function testConsole() {
+            console.log('✓ Console logging works!');
+            console.error('This is a test error (ignore this)');
+            alert('Check the browser console (F12) - you should see log messages');
+        }
+    </script>
+</body>
+
+</html>

@@ -109,5 +109,33 @@ export const notionIntegration = {
         }
 
         return formatted;
+    },
+
+    async get_stats(credentials) {
+        const { access_token } = credentials;
+
+        try {
+            const response = await fetch('https://api.notion.com/v1/search', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${access_token}`,
+                    'Notion-Version': '2022-06-28',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ page_size: 100 })
+            });
+
+            const data = await response.json();
+            const pages = (data.results || []).filter(r => r.object === 'page');
+            const databases = (data.results || []).filter(r => r.object === 'database');
+
+            return {
+                pages: { total: pages.length },
+                databases: { total: databases.length },
+                total_items: data.results?.length || 0
+            };
+        } catch (error) {
+            throw new Error(`Notion stats error: ${error.message}`);
+        }
     }
 };

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
+import { ensureAutomationTables } from '@/utils/ensure-automation-tables';
 
 // Get, Update, Delete specific automation
 export async function GET(request, { params }) {
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
         const { id } = params;
 
         const result = await query(
@@ -30,6 +32,7 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
         const { id } = params;
         const { name, description, triggerType, triggerConfig, steps } = await request.json();
 
@@ -63,6 +66,7 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
         const { id } = params;
 
         const result = await query(

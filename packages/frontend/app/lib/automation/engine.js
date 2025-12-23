@@ -4,19 +4,25 @@
  */
 
 import { query, getClient } from '@/utils/db';
-import { decrypt } from './encryption';
+import { decryptValue } from './encryption';
 import { slackIntegration } from '../integrations/slack';
 import { googleSheetsIntegration } from '../integrations/google-sheets';
 import { notionIntegration } from '../integrations/notion';
 import { stripeIntegration } from '../integrations/stripe';
 import { emailIntegration } from '../integrations/email';
+import { kartraIntegration } from '../integrations/kartra';
+import { mailerliteIntegration } from '../integrations/mailerlite';
+import { mailchimpIntegration } from '../integrations/mailchimp';
 
 const INTEGRATIONS = {
     slack: slackIntegration,
     google_sheets: googleSheetsIntegration,
     notion: notionIntegration,
     stripe: stripeIntegration,
-    email: emailIntegration
+    email: emailIntegration,
+    kartra: kartraIntegration,
+    mailerlite: mailerliteIntegration,
+    mailchimp: mailchimpIntegration
 };
 
 /**
@@ -134,7 +140,7 @@ async function executeStep(step, context, orgId, client) {
     }
 
     const encryptedCreds = credResult.rows[0].credentials;
-    const credentials = JSON.parse(decrypt(JSON.stringify(encryptedCreds)));
+    const credentials = JSON.parse(decryptValue(encryptedCreds));
 
     // Substitute variables in config
     const config = substituteVariables(step.config, context);

@@ -11,7 +11,11 @@ export default function LogoutPage() {
         localStorage.removeItem('auth_token');
 
         // Redirect to sign in
-        router.push('/account/signin');
+        if (typeof window !== 'undefined') {
+            window.location.href = '/account/signin';
+        } else {
+            router.replace('/account/signin');
+        }
     }, [router]);
 
     return (

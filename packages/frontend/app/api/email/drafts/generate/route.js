@@ -40,7 +40,7 @@ export async function POST(request) {
 
         // Generate draft
         const emailContent = `From: ${email.from_address}\nSubject: ${email.subject}\n\n${email.body_text}`;
-        const draft = await generateDraft(emailContent, voiceProfile);
+        const draft = await generateDraft(emailContent, voiceProfile, { orgId: user.org_id });
 
         // Save draft
         const draftResult = await query(
@@ -63,6 +63,12 @@ export async function POST(request) {
         });
     } catch (error) {
         console.error('Draft generation error:', error);
+        if (error?.status === 401 || error?.code === 'invalid_api_key' || error?.message?.includes('AI API key')) {
+            return NextResponse.json(
+                { error: 'AI API key is invalid or missing. Please update your API key in settings.' },
+                { status: 400 }
+            );
+        }
         return NextResponse.json(
             { error: 'Failed to generate draft' },
             { status: 500 }

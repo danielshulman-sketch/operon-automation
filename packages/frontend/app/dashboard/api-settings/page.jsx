@@ -5,26 +5,36 @@ import { Key, Eye, EyeOff, ExternalLink, CheckCircle2, AlertCircle } from 'lucid
 import InfoTooltip from '../../components/InfoTooltip';
 
 export default function APIKeySettings() {
-    const [apiKey, setApiKey] = useState('');
-    const [hasKey, setHasKey] = useState(false);
+    const [openaiKey, setOpenaiKey] = useState('');
+    const [anthropicKey, setAnthropicKey] = useState('');
+    const [googleKey, setGoogleKey] = useState('');
+    const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+    const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
+    const [hasGoogleKey, setHasGoogleKey] = useState(false);
+    const [provider, setProvider] = useState('openai');
+    const [model, setModel] = useState('');
     const [showKey, setShowKey] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState(null);
 
     useEffect(() => {
-        checkExistingKey();
+        loadSettings();
     }, []);
 
-    const checkExistingKey = async () => {
+    const loadSettings = async () => {
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('/api/admin/api-key', {
+            const res = await fetch('/api/admin/ai-settings', {
                 headers: { Authorization: `Bearer ${token}` },
             });
 
             if (res.ok) {
                 const data = await res.json();
-                setHasKey(data.hasKey);
+                setHasOpenAIKey(Boolean(data.settings?.hasOpenAIKey));
+                setHasAnthropicKey(Boolean(data.settings?.hasAnthropicKey));
+                setHasGoogleKey(Boolean(data.settings?.hasGoogleKey));
+                setProvider(data.settings?.provider || 'openai');
+                setModel(data.settings?.model || '');
             }
         } catch (error) {
             console.error('Failed to check API key:', error);
@@ -38,21 +48,31 @@ export default function APIKeySettings() {
 
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('/api/admin/api-key', {
-                method: 'POST',
+            const res = await fetch('/api/admin/ai-settings', {
+                method: 'PUT',
                 headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ apiKey }),
+                body: JSON.stringify({
+                    provider,
+                    model,
+                    openaiApiKey: openaiKey,
+                    anthropicApiKey: anthropicKey,
+                    googleApiKey: googleKey,
+                }),
             });
 
             const data = await res.json();
 
             if (res.ok) {
                 setMessage({ type: 'success', text: 'API key saved successfully!' });
-                setHasKey(true);
-                setApiKey('');
+                setHasOpenAIKey(Boolean(openaiKey) || hasOpenAIKey);
+                setHasAnthropicKey(Boolean(anthropicKey) || hasAnthropicKey);
+                setHasGoogleKey(Boolean(googleKey) || hasGoogleKey);
+                setOpenaiKey('');
+                setAnthropicKey('');
+                setGoogleKey('');
                 setShowKey(false);
             } else {
                 setMessage({ type: 'error', text: data.error || 'Failed to save API key' });
@@ -65,25 +85,27 @@ export default function APIKeySettings() {
     };
 
     const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete your API key? AI Chat will stop working.')) {
+        if (!confirm('Delete all saved AI keys for this organization?')) {
             return;
         }
 
         try {
             const token = localStorage.getItem('auth_token');
-            const res = await fetch('/api/admin/api-key', {
+            const res = await fetch('/api/admin/ai-settings', {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` },
             });
 
             if (res.ok) {
-                setMessage({ type: 'success', text: 'API key deleted successfully' });
-                setHasKey(false);
+                setMessage({ type: 'success', text: 'API keys deleted successfully' });
+                setHasOpenAIKey(false);
+                setHasAnthropicKey(false);
+                setHasGoogleKey(false);
             } else {
-                setMessage({ type: 'error', text: 'Failed to delete API key' });
+                setMessage({ type: 'error', text: 'Failed to delete API keys' });
             }
         } catch (error) {
-            setMessage({ type: 'error', text: 'Failed to delete API key' });
+            setMessage({ type: 'error', text: 'Failed to delete API keys' });
         }
     };
 
@@ -92,35 +114,35 @@ export default function APIKeySettings() {
             <div className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
                     <h1 className="text-3xl font-sora font-bold text-black dark:text-white">
-                        OpenAI API Key
+                        AI Provider Settings
                     </h1>
                     <InfoTooltip
-                        content="Add your organization's OpenAI API key to enable AI Chat features. Your key is stored securely and only used for your organization's chat requests."
+                        content="Add API keys for the AI providers you use, then choose which model to run for your organization."
                         position="right"
                     />
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 font-inter">
-                    Configure your OpenAI API key for AI-powered chat features
+                    Configure AI provider keys and pick the default model for your organization
                 </p>
             </div>
 
             {/* Status Card */}
-            {hasKey && (
+            {(hasOpenAIKey || hasAnthropicKey || hasGoogleKey) && (
                 <div className="mb-6 p-4 rounded-xl bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
                     <div className="flex-1">
                         <p className="font-plus-jakarta font-semibold text-green-900 dark:text-green-100">
-                            API Key Configured
+                            AI Keys Configured
                         </p>
                         <p className="text-sm text-green-700 dark:text-green-300 font-inter">
-                            Your organization's AI Chat is active and ready to use
+                            Your organization can use AI features with the configured providers
                         </p>
                     </div>
                     <button
                         onClick={handleDelete}
                         className="px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-inter text-sm hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
                     >
-                        Delete Key
+                        Delete Keys
                     </button>
                 </div>
             )}
@@ -128,7 +150,7 @@ export default function APIKeySettings() {
             {/* Instructions */}
             <div className="mb-8 rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] p-6">
                 <h2 className="text-xl font-sora font-bold text-black dark:text-white mb-4">
-                    📖 How to Get Your OpenAI API Key
+                    How to Get Your OpenAI API Key
                 </h2>
 
                 <div className="space-y-4 font-inter text-gray-700 dark:text-gray-300">
@@ -200,7 +222,7 @@ export default function APIKeySettings() {
                     <div className="flex gap-2">
                         <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                         <div className="text-sm text-blue-900 dark:text-blue-100 font-inter">
-                            <p className="font-semibold mb-1">💡 Pricing Information</p>
+                            <p className="font-semibold mb-1"> Pricing Information</p>
                             <p>
                                 OpenAI charges based on usage. GPT-4 costs approximately $0.03 per 1K tokens (~750 words).
                                 Set usage limits in your OpenAI dashboard to control costs.
@@ -213,21 +235,51 @@ export default function APIKeySettings() {
             {/* API Key Form */}
             <div className="rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] p-6">
                 <h2 className="text-xl font-sora font-bold text-black dark:text-white mb-4">
-                    {hasKey ? 'Update API Key' : 'Add API Key'}
+                    Provider Keys & Model
                 </h2>
 
                 <form onSubmit={handleSave} className="space-y-4">
                     <div>
                         <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
-                            OpenAI API Key *
+                            Default Provider
+                        </label>
+                        <select
+                            value={provider}
+                            onChange={(e) => setProvider(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-inter focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                        >
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="google">Google (Gemini)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
+                            Default Model
+                        </label>
+                        <input
+                            type="text"
+                            value={model}
+                            onChange={(e) => setModel(e.target.value)}
+                            placeholder="e.g., gpt-4o-mini / claude-3-5-sonnet-20240620 / gemini-1.5-pro"
+                            className="w-full px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-500 font-inter mt-1">
+                            Leave blank to use the provider default.
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
+                            OpenAI API Key
                         </label>
                         <div className="relative">
                             <input
                                 type={showKey ? 'text' : 'password'}
-                                required
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="sk-proj-..."
+                                value={openaiKey}
+                                onChange={(e) => setOpenaiKey(e.target.value)}
+                                placeholder="sk-..."
                                 className="w-full px-4 py-3 pr-12 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
                             />
                             <button
@@ -238,9 +290,32 @@ export default function APIKeySettings() {
                                 {showKey ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                             </button>
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 font-inter mt-1">
-                            Your API key is encrypted and stored securely
-                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
+                            Anthropic API Key
+                        </label>
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            value={anthropicKey}
+                            onChange={(e) => setAnthropicKey(e.target.value)}
+                            placeholder="sk-ant-..."
+                            className="w-full px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
+                            Google AI API Key
+                        </label>
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            value={googleKey}
+                            onChange={(e) => setGoogleKey(e.target.value)}
+                            placeholder="AIza..."
+                            className="w-full px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                        />
                     </div>
 
                     {message && (
@@ -254,14 +329,15 @@ export default function APIKeySettings() {
 
                     <button
                         type="submit"
-                        disabled={isSaving || !apiKey}
+                        disabled={isSaving}
                         className="w-full py-3 rounded-xl bg-black dark:bg-white text-white dark:text-black font-plus-jakarta font-semibold hover:scale-[0.98] transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         <Key className="h-5 w-5" />
-                        {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
+                        {isSaving ? 'Saving...' : 'Save AI Settings'}
                     </button>
                 </form>
             </div>
         </div>
     );
 }
+

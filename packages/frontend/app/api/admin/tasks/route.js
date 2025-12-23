@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
 import { requireAdmin } from '@/utils/auth';
+import { ensureDetectedTasksAssignedColumn } from '@/utils/ensure-detected-tasks-columns';
 
 export async function GET(request) {
     try {
         const user = await requireAdmin(request);
+        await ensureDetectedTasksAssignedColumn();
 
         // Get all tasks for the organization with user details
         const result = await query(
@@ -15,7 +17,7 @@ export async function GET(request) {
         u.first_name, u.last_name
        FROM detected_tasks t
        JOIN users u ON t.user_id = u.id
-       WHERE t.org_id = $1 AND t.status != 'completed'
+       WHERE t.org_id = $1
        ORDER BY 
          CASE t.priority
            WHEN 'urgent' THEN 1
@@ -41,6 +43,7 @@ export async function GET(request) {
 export async function POST(request) {
     try {
         const admin = await requireAdmin(request);
+        await ensureDetectedTasksAssignedColumn();
         const { title, description, priority, dueDate, assignedTo } = await request.json();
 
         if (!title) {
@@ -107,4 +110,3 @@ export async function POST(request) {
         );
     }
 }
-

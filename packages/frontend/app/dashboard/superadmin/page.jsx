@@ -572,8 +572,8 @@ export default function SuperAdminPage() {
                                 <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                                     <Building2 className="h-6 w-6 text-blue-500" />
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-semibold text-white mb-1">{org.name}</h3>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-semibold text-white mb-1 truncate" title={org.name}>{org.name}</h3>
                                     <p className="text-sm text-gray-400">
                                         Created {new Date(org.created_at).toLocaleDateString()}
                                     </p>

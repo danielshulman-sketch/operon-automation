@@ -14,8 +14,6 @@ export async function POST(request) {
             );
         }
 
-        // Encrypt password (in production, use proper encryption)
-        // For now, we'll store it as-is (NOT RECOMMENDED for production)
         const encryptedPassword = Buffer.from(password).toString('base64');
 
         // Check if mailbox already exists for this email
@@ -30,20 +28,19 @@ export async function POST(request) {
             // Update existing mailbox
             await query(
                 `UPDATE mailboxes 
-         SET provider = $1, imap_host = $2, imap_port = $3, 
-             smtp_host = $4, smtp_port = $5, password_encrypted = $6,
-             is_active = true, last_sync_at = NOW()
-         WHERE id = $7`,
-                [provider, imapHost, parseInt(imapPort), smtpHost, parseInt(smtpPort), encryptedPassword, existing.rows[0].id]
+         SET imap_host = $1, imap_port = $2, smtp_host = $3, smtp_port = $4,
+             password_encrypted = $5, is_active = true
+         WHERE id = $6`,
+                [imapHost, imapPort || null, smtpHost, smtpPort || null, encryptedPassword, existing.rows[0].id]
             );
             mailboxId = existing.rows[0].id;
         } else {
             // Create new mailbox
             const result = await query(
-                `INSERT INTO mailboxes (org_id, user_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_encrypted, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+                `INSERT INTO mailboxes (org_id, user_id, email_address, imap_host, imap_port, smtp_host, smtp_port, password_encrypted, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
          RETURNING id`,
-                [user.org_id, user.id, email, provider, imapHost, parseInt(imapPort), smtpHost, parseInt(smtpPort), encryptedPassword]
+                [user.org_id, user.id, email, imapHost, imapPort || null, smtpHost, smtpPort || null, encryptedPassword]
             );
             mailboxId = result.rows[0].id;
         }
@@ -62,8 +59,13 @@ export async function POST(request) {
         });
     } catch (error) {
         console.error('Email connection error:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
         return NextResponse.json(
-            { error: 'Failed to connect email account' },
+            { error: 'Failed to connect email account', details: error.message },
             { status: 500 }
         );
     }
@@ -75,7 +77,7 @@ export async function GET(request) {
         const user = await requireAuth(request);
 
         const result = await query(
-            `SELECT id, email_address, provider, imap_host, smtp_host, is_active, last_sync_at, created_at
+            `SELECT id, email_address, imap_host, smtp_host, is_active, created_at
        FROM mailboxes
        WHERE org_id = $1 AND user_id = $2
        ORDER BY created_at DESC`,

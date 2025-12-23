@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
 import { requireAuth } from '@/utils/auth';
+import { ensureAutomationTables } from '@/utils/ensure-automation-tables';
 
 // List all runs for the organization, optionally filtered by automation id
 export async function GET(request) {
     try {
         const user = await requireAuth(request);
+        await ensureAutomationTables();
         const { searchParams } = new URL(request.url);
         const automationId = searchParams.get('automationId');
 

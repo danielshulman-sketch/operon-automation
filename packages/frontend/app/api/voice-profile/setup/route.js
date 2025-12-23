@@ -46,7 +46,7 @@ export async function POST(request) {
         }
 
         // Analyze with OpenAI
-        const analysis = await analyzeVoiceProfile(samples, responses);
+        const analysis = await analyzeVoiceProfile(samples, responses, { orgId: user.org_id });
 
         // Save or update voice profile
         const result = await query(
@@ -87,6 +87,12 @@ export async function POST(request) {
         });
     } catch (error) {
         console.error('Voice profile setup error:', error);
+        if (error?.status === 401 || error?.code === 'invalid_api_key' || error?.message?.includes('AI API key')) {
+            return NextResponse.json(
+                { error: 'AI API key is invalid or missing. Please update your API key in settings.' },
+                { status: 400 }
+            );
+        }
         return NextResponse.json(
             { error: 'Failed to create voice profile' },
             { status: 500 }
