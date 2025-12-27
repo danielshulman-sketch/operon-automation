@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
 import { query } from '@/utils/db';
 import { encrypt, decryptValue } from '@/lib/automation/encryption';
-import { getAllIntegrations } from '@/lib/integrations';
+import { getAllIntegrations, supportsOAuth } from '@/lib/integrations';
 import { ensureOAuthClientCredentialsTable } from '@/utils/ensure-oauth-client-credentials';
 
 export async function GET(request) {
@@ -10,7 +10,7 @@ export async function GET(request) {
         const user = await requireAuth(request);
         await ensureOAuthClientCredentialsTable();
 
-        const integrations = getAllIntegrations().filter(i => i.authType === 'oauth2');
+        const integrations = getAllIntegrations().filter((integration) => supportsOAuth(integration));
         const existing = await query(
             `SELECT integration_name, client_id, client_secret
              FROM oauth_client_credentials

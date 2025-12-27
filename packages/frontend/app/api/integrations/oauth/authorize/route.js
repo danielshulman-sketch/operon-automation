@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getIntegration } from '@/lib/integrations';
+import { getIntegration, supportsOAuth } from '@/lib/integrations';
 import { requireAuth } from '@/utils/auth';
 import { query } from '@/utils/db';
 import { ensureOAuthClientCredentialsTable } from '@/utils/ensure-oauth-client-credentials';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 async function buildAuthUrl(request, integrationName, clientId) {
     const integration = getIntegration(integrationName);
-    if (!integration || integration.authType !== 'oauth2') {
+    if (!integration || !supportsOAuth(integration)) {
         const url = new URL('/dashboard/automations/integrations?error=invalid_integration', request.url);
         return { redirect: url };
     }

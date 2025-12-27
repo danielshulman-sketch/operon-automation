@@ -213,6 +213,74 @@ export const INTEGRATIONS = {
         }
     },
 
+    kajabi: {
+        name: 'Kajabi',
+        description: 'Courses, memberships, and marketing automation',
+        icon: 'K',
+        authType: 'api_key',
+        color: '#1B2A4E',
+        actions: ['create_member', 'grant_offer', 'tag_member'],
+        helpUrl: 'https://help.kajabi.com/hc/en-us/categories/360000436573-API',
+        setupInstructions: '1. Log in to Kajabi\n2. Go to Settings > API Credentials\n3. Create a new API key\n4. Copy the API Key and API Secret\n5. Paste them when connecting in Operon',
+        authFields: [
+            { name: 'apiKey', label: 'API Key', type: 'password', required: true },
+            { name: 'apiSecret', label: 'API Secret', type: 'password', required: true }
+        ],
+        actionSchemas: {
+            create_member: [
+                { name: 'email', label: 'Email', type: 'email', required: true },
+                { name: 'firstName', label: 'First Name', type: 'text' },
+                { name: 'lastName', label: 'Last Name', type: 'text' }
+            ],
+            grant_offer: [
+                { name: 'memberId', label: 'Member ID', type: 'text', required: true },
+                { name: 'offerId', label: 'Offer ID', type: 'text', required: true }
+            ],
+            tag_member: [
+                { name: 'memberId', label: 'Member ID', type: 'text', required: true },
+                { name: 'tag', label: 'Tag', type: 'text', required: true }
+            ]
+        }
+    },
+
+    gohighlevel: {
+        name: 'GoHighLevel',
+        description: 'CRM, pipelines, and marketing automation',
+        icon: 'G',
+        authType: ['oauth2', 'api_key'],
+        color: '#1E4ED8',
+        actions: ['create_contact', 'update_contact', 'create_opportunity'],
+        helpUrl: 'https://developers.gohighlevel.com/',
+        setupInstructions: 'OAuth:\n1. Go to https://developers.gohighlevel.com/ and create an OAuth app\n2. Add redirect URL: {APP_URL}/api/integrations/oauth/callback\n3. Copy the Client ID and Client Secret\n4. Paste them into Operon OAuth Settings and connect\n\nAPI Key:\n1. Log in to GoHighLevel\n2. Go to Settings > Company > API Keys\n3. Create a new API key\n4. Copy the API key\n5. Paste it when connecting in Operon',
+        oauth: {
+            authUrl: 'https://marketplace.gohighlevel.com/oauth/chooselocation',
+            tokenUrl: 'https://services.leadconnectorhq.com/oauth/token',
+            scopes: []
+        },
+        authFields: [
+            { name: 'apiKey', label: 'API Key', type: 'password', required: true }
+        ],
+        actionSchemas: {
+            create_contact: [
+                { name: 'firstName', label: 'First Name', type: 'text' },
+                { name: 'lastName', label: 'Last Name', type: 'text' },
+                { name: 'email', label: 'Email', type: 'email' },
+                { name: 'phone', label: 'Phone', type: 'text' }
+            ],
+            update_contact: [
+                { name: 'contactId', label: 'Contact ID', type: 'text', required: true },
+                { name: 'email', label: 'Email', type: 'email' },
+                { name: 'phone', label: 'Phone', type: 'text' }
+            ],
+            create_opportunity: [
+                { name: 'name', label: 'Opportunity Name', type: 'text', required: true },
+                { name: 'pipelineId', label: 'Pipeline ID', type: 'text', required: true },
+                { name: 'stageId', label: 'Stage ID', type: 'text', required: true },
+                { name: 'contactId', label: 'Contact ID', type: 'text', required: true }
+            ]
+        }
+    },
+
     mailerlite: {
         name: 'MailerLite',
         description: 'Email marketing and newsletters',
@@ -283,6 +351,19 @@ export const INTEGRATIONS = {
         }
     }
 };
+
+export function normalizeAuthTypes(authType) {
+    if (!authType) return [];
+    return Array.isArray(authType) ? authType : [authType];
+}
+
+export function supportsOAuth(integration) {
+    return normalizeAuthTypes(integration?.authType).includes('oauth2');
+}
+
+export function supportsCredentialAuth(integration) {
+    return normalizeAuthTypes(integration?.authType).some((type) => type !== 'oauth2');
+}
 
 export function getIntegration(name) {
     return INTEGRATIONS[name] || null;

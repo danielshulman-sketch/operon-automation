@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check, X, Shield, HelpCircle, Lock, BarChart3, TrendingUp, Users as UsersIcon, Mail, Info } from 'lucide-react';
+import { supportsOAuth, supportsCredentialAuth } from '../../../lib/integrations';
 
 export default function IntegrationsPage() {
     const router = useRouter();
@@ -139,8 +140,8 @@ export default function IntegrationsPage() {
         }));
     };
 
-    const handleConnectClick = async (integration) => {
-        if (integration.authType === 'oauth2') {
+    const handleConnectClick = async (integration, method = 'credentials') => {
+        if (method === 'oauth2') {
             if (!integration.oauthReady) {
                 setErrorMessage('OAuth configuration missing. Add Client ID/Secret in OAuth Settings.');
                 return;
@@ -392,15 +393,33 @@ export default function IntegrationsPage() {
                                         Disconnect
                                     </button>
                                 ) : (
-                                    <button
-                                        onClick={() => handleConnectClick(integration)}
-                                        disabled={integration.authType === 'oauth2' && !integration.oauthReady}
-                                        className="w-full py-2.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-inter font-medium text-sm hover:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                                    >
-                                        {integration.authType === 'oauth2' && !integration.oauthReady
-                                            ? 'Missing OAuth Config'
-                                            : 'Connect'}
-                                    </button>
+                                    supportsOAuth(integration) && supportsCredentialAuth(integration) ? (
+                                        <div className="space-y-2">
+                                            <button
+                                                onClick={() => handleConnectClick(integration, 'oauth2')}
+                                                disabled={!integration.oauthReady}
+                                                className="w-full py-2.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-inter font-medium text-sm hover:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            >
+                                                {integration.oauthReady ? 'Connect with OAuth' : 'Missing OAuth Config'}
+                                            </button>
+                                            <button
+                                                onClick={() => handleConnectClick(integration, 'credentials')}
+                                                className="w-full py-2.5 rounded-xl border border-black/10 dark:border-white/20 text-black dark:text-white font-inter font-medium text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                            >
+                                                Connect with API Key
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleConnectClick(integration, supportsOAuth(integration) ? 'oauth2' : 'credentials')}
+                                            disabled={supportsOAuth(integration) && !integration.oauthReady}
+                                            className="w-full py-2.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-inter font-medium text-sm hover:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            {supportsOAuth(integration) && !integration.oauthReady
+                                                ? 'Missing OAuth Config'
+                                                : 'Connect'}
+                                        </button>
+                                    )
                                 )}
                             </div>
                         </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
-import { getAllIntegrations } from '../../lib/integrations/index';
+import { getAllIntegrations, supportsOAuth } from '../../lib/integrations/index';
 import { query } from '@/utils/db';
 import { ensureIntegrationCredentialsTable } from '@/utils/ensure-integration-credentials';
 import { ensureOAuthClientCredentialsTable } from '@/utils/ensure-oauth-client-credentials';
@@ -69,7 +69,7 @@ export async function GET(request) {
         // Merge connection status and OAuth readiness
         const integrationsWithStatus = integrations.map((integration) => {
             let oauthReady = true;
-            if (integration.authType === 'oauth2') {
+            if (supportsOAuth(integration)) {
                 const prefix = integration.id.toUpperCase();
                 const storedClientId = oauthConfigMap[integration.id]?.clientId;
                 const storedClientSecret = oauthConfigMap[integration.id]?.clientSecret;
