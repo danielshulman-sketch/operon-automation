@@ -12,9 +12,9 @@ export default function LogoutPage() {
 
         // Redirect to sign in
         if (typeof window !== 'undefined') {
-            window.location.href = '/account/signin';
+            window.location.href = '/login';
         } else {
-            router.replace('/account/signin');
+            router.replace('/login');
         }
     }, [router]);
 

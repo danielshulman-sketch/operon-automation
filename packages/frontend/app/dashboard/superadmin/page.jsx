@@ -309,8 +309,8 @@ export default function SuperAdminPage() {
                 </div>
 
                 {/* Users Table */}
-                <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 overflow-visible">
-                    <table className="w-full">
+                <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 overflow-x-auto">
+                    <table className="w-full min-w-[720px]">
                         <thead className="bg-[#0d0d0d] border-b border-gray-800">
                             <tr>
                                 <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">User</th>
@@ -543,6 +543,25 @@ export default function SuperAdminPage() {
     // Organizations List View
     return (
         <div className="p-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                <div className="bg-[#1a1a1a] rounded-2xl p-5 border border-gray-800">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Organizations</p>
+                    <p className="text-2xl font-semibold text-white mt-2">{organizations.length}</p>
+                </div>
+                <div className="bg-[#1a1a1a] rounded-2xl p-5 border border-gray-800">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Active Users</p>
+                    <p className="text-2xl font-semibold text-white mt-2">
+                        {organizations.reduce((sum, org) => sum + Number(org.active_user_count || 0), 0)}
+                    </p>
+                </div>
+                <div className="bg-[#1a1a1a] rounded-2xl p-5 border border-gray-800">
+                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Inactive Users</p>
+                    <p className="text-2xl font-semibold text-white mt-2">
+                        {organizations.reduce((sum, org) => sum + Number(org.inactive_user_count || 0), 0)}
+                    </p>
+                </div>
+            </div>
+
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-white mb-2">Superadmin Dashboard</h1>
@@ -582,12 +601,33 @@ export default function SuperAdminPage() {
 
                             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-800">
                                 <div>
-                                    <p className="text-gray-500 text-xs mb-1">Members</p>
-                                    <p className="text-white font-semibold">{org.member_count || 0}</p>
+                                    <p className="text-gray-500 text-xs mb-1">Active Users</p>
+                                    <p className="text-white font-semibold">{org.active_user_count || 0}</p>
                                 </div>
                                 <div>
-                                    <p className="text-gray-500 text-xs mb-1">Open Tasks</p>
-                                    <p className="text-white font-semibold">{org.task_count || 0}</p>
+                                    <p className="text-gray-500 text-xs mb-1">Inactive Users</p>
+                                    <p className="text-white font-semibold">{org.inactive_user_count || 0}</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4">
+                                <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                                    <span>Total Users</span>
+                                    <span>{org.total_user_count || 0}</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-[#0d0d0d] overflow-hidden border border-gray-800">
+                                    <div
+                                        className="h-full bg-green-500/60"
+                                        style={{
+                                            width: org.total_user_count
+                                                ? `${Math.round((org.active_user_count / org.total_user_count) * 100)}%`
+                                                : '0%',
+                                        }}
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between text-xs text-gray-500 mt-3">
+                                    <span>Open Tasks</span>
+                                    <span>{org.task_count || 0}</span>
                                 </div>
                             </div>
                         </div>

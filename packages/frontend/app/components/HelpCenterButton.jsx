@@ -194,7 +194,7 @@ export default function HelpCenterButton() {
     return (
         <div className="help-button fixed bottom-6 right-6 z-50">
             {isOpen && (
-                <div className="help-options mb-3 w-[360px] sm:w-[400px] rounded-3xl bg-white/95 backdrop-blur-xl border border-gray-200 ring-1 ring-black/5 shadow-[0_35px_80px_rgba(15,23,42,0.35)] overflow-hidden text-black">
+                <div className="help-options mb-3 w-[360px] max-w-[85vw] sm:w-[400px] rounded-3xl bg-white/95 backdrop-blur-xl border border-gray-200 ring-1 ring-black/5 shadow-[0_35px_80px_rgba(15,23,42,0.35)] overflow-hidden text-black">
                     <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-500 uppercase tracking-[0.2em]">

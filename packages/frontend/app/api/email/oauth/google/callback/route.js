@@ -33,12 +33,12 @@ export async function GET(request) {
         const token = cookieStore.get('auth_token')?.value || request.headers.get('authorization')?.substring(7);
 
         if (!token) {
-            return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/account/signin`);
+            return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login`);
         }
 
         const user = await getUserFromToken(token);
         if (!user) {
-            return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/account/signin`);
+            return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login`);
         }
 
         // Store OAuth connection

@@ -23,10 +23,13 @@ export async function ensureSuperadminColumn() {
     `)
         .then(() => {
             ensured = true;
+            console.log('is_superadmin column ensured');
         })
         .catch((error) => {
-            console.error('Failed to ensure is_superadmin column:', error);
-            throw error;
+            // Don't throw - column might already exist or other transient error
+            // Log the error but mark as ensured to prevent repeated failures
+            console.log('is_superadmin column already exists or error:', error.message);
+            ensured = true;
         })
         .finally(() => {
             ensuringPromise = null;

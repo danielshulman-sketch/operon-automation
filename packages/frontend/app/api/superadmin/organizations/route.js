@@ -9,8 +9,10 @@ export async function GET(request) {
         const user = await requireSuperAdmin(request);
 
         const result = await query(
-            `SELECT o.*, 
-        (SELECT COUNT(*) FROM org_members WHERE org_id = o.id AND is_active = true) as member_count,
+            `SELECT o.*,
+        (SELECT COUNT(*) FROM org_members WHERE org_id = o.id) as total_user_count,
+        (SELECT COUNT(*) FROM org_members WHERE org_id = o.id AND is_active = true) as active_user_count,
+        (SELECT COUNT(*) FROM org_members WHERE org_id = o.id AND is_active = false) as inactive_user_count,
         (SELECT COUNT(*) FROM detected_tasks WHERE org_id = o.id AND status != 'completed') as task_count
        FROM organisations o
        ORDER BY o.created_at DESC`
@@ -71,9 +73,9 @@ export async function POST(request) {
 
             // Create auth account
             await client.query(
-                `INSERT INTO auth_accounts (user_id, provider, provider_account_id, password_hash)
-         VALUES ($1, 'email', $2, $3)`,
-                [userId, adminEmail, hashedPassword]
+                `INSERT INTO auth_accounts (user_id, provider, password_hash)
+         VALUES ($1, 'email', $2)`,
+                [userId, hashedPassword]
             );
         }
 

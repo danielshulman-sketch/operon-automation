@@ -719,8 +719,8 @@ export default function SettingsPage() {
                         </button>
                     </div>
 
-                    <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 overflow-hidden">
-                        <table className="w-full">
+                    <div className="bg-[#1a1a1a] rounded-2xl border border-gray-800 overflow-x-auto">
+                        <table className="w-full min-w-[640px]">
                             <thead className="bg-[#0d0d0d] border-b border-gray-800">
                                 <tr>
                                     <th className="px-6 py-4 text-left text-sm font-medium text-gray-400">User</th>

@@ -17,7 +17,7 @@ export default function HomePage() {
             try {
                 const token = localStorage.getItem('auth_token');
                 if (!token) {
-                    router.replace('/account/signin');
+                    router.replace('/login');
                     clearTimeout(timeoutId);
                     return;
                 }
@@ -33,12 +33,12 @@ export default function HomePage() {
                     router.replace('/dashboard');
                 } else {
                     localStorage.removeItem('auth_token');
-                    router.replace('/account/signin');
+                    router.replace('/login');
                 }
             } catch (error) {
                 console.error('Session check failed:', error);
                 localStorage.removeItem('auth_token');
-                router.replace('/account/signin');
+                router.replace('/login');
             } finally {
                 clearTimeout(timeoutId);
             }
@@ -62,7 +62,7 @@ export default function HomePage() {
                 </div>
                 <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm">
                     <Link
-                        href="/account/signin"
+                        href="/login"
                         className="px-5 py-2.5 rounded-xl bg-white text-[#050c1b] font-semibold hover:bg-gray-100 transition-colors"
                     >
                         Go to sign in

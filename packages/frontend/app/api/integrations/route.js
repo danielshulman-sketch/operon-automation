@@ -3,6 +3,8 @@ import { requireAuth } from '@/utils/auth';
 import { getAllIntegrations } from '../../lib/integrations/index';
 import { query } from '@/utils/db';
 import { ensureIntegrationCredentialsTable } from '@/utils/ensure-integration-credentials';
+import { ensureOAuthClientCredentialsTable } from '@/utils/ensure-oauth-client-credentials';
+import { decryptValue } from '@/lib/automation/encryption';
 
 /**
  * Get all available integrations with connection status
@@ -11,6 +13,7 @@ export async function GET(request) {
     try {
         const user = await requireAuth(request);
         await ensureIntegrationCredentialsTable();
+        await ensureOAuthClientCredentialsTable();
 
         // Get all integrations
         const integrations = getAllIntegrations();
@@ -38,13 +41,40 @@ export async function GET(request) {
             // Continue without connection status
         }
 
+        // Load stored OAuth client credentials for this org
+        let oauthConfigMap = {};
+        try {
+            const oauthResult = await query(
+                `SELECT integration_name, client_id, client_secret
+                 FROM oauth_client_credentials
+                 WHERE org_id = $1`,
+                [user.org_id]
+            );
+            oauthResult.rows.forEach((row) => {
+                try {
+                    const clientId = decryptValue(row.client_id);
+                    const clientSecret = decryptValue(row.client_secret);
+                    oauthConfigMap[row.integration_name] = {
+                        clientId,
+                        clientSecret,
+                    };
+                } catch (error) {
+                    oauthConfigMap[row.integration_name] = {};
+                }
+            });
+        } catch (dbError) {
+            console.error('Failed to fetch OAuth config:', dbError);
+        }
+
         // Merge connection status and OAuth readiness
         const integrationsWithStatus = integrations.map((integration) => {
             let oauthReady = true;
             if (integration.authType === 'oauth2') {
                 const prefix = integration.id.toUpperCase();
-                const clientId = process.env[`${prefix}_CLIENT_ID`];
-                const clientSecret = process.env[`${prefix}_CLIENT_SECRET`];
+                const storedClientId = oauthConfigMap[integration.id]?.clientId;
+                const storedClientSecret = oauthConfigMap[integration.id]?.clientSecret;
+                const clientId = storedClientId || process.env[`${prefix}_CLIENT_ID`];
+                const clientSecret = storedClientSecret || process.env[`${prefix}_CLIENT_SECRET`];
                 oauthReady = Boolean(clientId && clientSecret);
             }
 

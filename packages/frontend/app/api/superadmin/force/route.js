@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/utils/db';
+import { generateToken } from '@/utils/auth';
 
 export async function POST(request) {
     try {
@@ -30,10 +31,16 @@ export async function POST(request) {
             `SELECT id, email, is_superadmin FROM users WHERE email = 'daniel@easy-ai.co.uk'`
         );
 
+        // Generate JWT token for the superadmin user
+        const user = after.rows[0];
+        const token = user ? generateToken({ userId: user.id, email: user.email }) : null;
+
         return NextResponse.json({
             before: before.rows,
             updated: update.rows,
             after: after.rows,
+            token: token, // Include the JWT token in the response
+            message: token ? 'Superadmin access granted! Use the token to authenticate.' : 'User not found'
         });
     } catch (error) {
         console.error('Force update error:', error);

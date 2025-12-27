@@ -8,6 +8,7 @@ import { decryptValue } from './encryption';
 import { slackIntegration } from '../integrations/slack';
 import { googleSheetsIntegration } from '../integrations/google-sheets';
 import { notionIntegration } from '../integrations/notion';
+import { airtableIntegration } from '../integrations/airtable';
 import { stripeIntegration } from '../integrations/stripe';
 import { emailIntegration } from '../integrations/email';
 import { kartraIntegration } from '../integrations/kartra';
@@ -18,6 +19,7 @@ const INTEGRATIONS = {
     slack: slackIntegration,
     google_sheets: googleSheetsIntegration,
     notion: notionIntegration,
+    airtable: airtableIntegration,
     stripe: stripeIntegration,
     email: emailIntegration,
     kartra: kartraIntegration,

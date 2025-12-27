@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Check, X, Shield, HelpCircle, Lock, BarChart3, TrendingUp, Users as UsersIcon, Mail } from 'lucide-react';
+import { ArrowLeft, Check, X, Shield, HelpCircle, Lock, BarChart3, TrendingUp, Users as UsersIcon, Mail, Info } from 'lucide-react';
 
 export default function IntegrationsPage() {
     const router = useRouter();
@@ -13,6 +13,7 @@ export default function IntegrationsPage() {
     const [credentials, setCredentials] = useState({});
     const [integrationStats, setIntegrationStats] = useState({});
     const [expandedStats, setExpandedStats] = useState({});
+    const [expandedInstructions, setExpandedInstructions] = useState({});
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
@@ -125,13 +126,47 @@ export default function IntegrationsPage() {
         );
     };
 
-    const handleConnectClick = (integration) => {
+    const getInstructionsText = (integration) => {
+        if (!integration?.setupInstructions) return '';
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || '{APP_URL}';
+        return integration.setupInstructions.split('{APP_URL}').join(appUrl);
+    };
+
+    const toggleInstructions = (integrationId) => {
+        setExpandedInstructions(prev => ({
+            ...prev,
+            [integrationId]: !prev[integrationId]
+        }));
+    };
+
+    const handleConnectClick = async (integration) => {
         if (integration.authType === 'oauth2') {
             if (!integration.oauthReady) {
-                setErrorMessage('OAuth configuration missing. Ask your admin to add Client ID/Secret.');
+                setErrorMessage('OAuth configuration missing. Add Client ID/Secret in OAuth Settings.');
                 return;
             }
-            window.location.href = `/api/integrations/oauth/authorize?integration=${integration.id}`;
+            try {
+                const token = localStorage.getItem('auth_token');
+                const res = await fetch('/api/integrations/oauth/authorize', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ integration: integration.id }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.url) {
+                        window.location.href = data.url;
+                        return;
+                    }
+                }
+                const error = await res.json();
+                setErrorMessage(error.error || 'Failed to start OAuth flow.');
+            } catch (error) {
+                setErrorMessage('Failed to start OAuth flow.');
+            }
             return;
         }
         setConnectingIntegration(integration);
@@ -198,7 +233,7 @@ export default function IntegrationsPage() {
 
     return (
         <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
+            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <button
                     onClick={() => router.push('/dashboard/automations')}
                     className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors mb-4"
@@ -206,12 +241,20 @@ export default function IntegrationsPage() {
                     <ArrowLeft className="h-4 w-4" />
                     Back to Automations
                 </button>
-                <h1 className="text-3xl font-sora font-bold text-black dark:text-white mb-2">
-                    Integrations
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 font-inter">
-                    Connect your tools to use in automations
-                </p>
+                <div>
+                    <h1 className="text-3xl font-sora font-bold text-black dark:text-white mb-2">
+                        Integrations
+                    </h1>
+                    <p className="text-gray-600 dark:text-gray-400 font-inter">
+                        Connect your tools to use in automations
+                    </p>
+                </div>
+                <button
+                    onClick={() => router.push('/dashboard/automations/integrations/oauth-settings')}
+                    className="inline-flex items-center justify-center rounded-xl bg-black text-white px-5 py-2.5 text-sm font-semibold shadow-[0_12px_30px_rgba(0,0,0,0.25)] hover:brightness-110 dark:bg-white dark:text-black"
+                >
+                    OAuth Settings
+                </button>
             </div>
 
             {errorMessage && (
@@ -243,16 +286,34 @@ export default function IntegrationsPage() {
                                         </p>
                                     </div>
                                 </div>
-                                {integration.connected ? (
-                                    <div className="bg-green-100 dark:bg-green-900/30 p-1.5 rounded-full">
-                                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                    </div>
-                                ) : (
-                                    <div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-full">
-                                        <X className="h-4 w-4 text-gray-400" />
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    {integration.setupInstructions && (
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleInstructions(integration.id)}
+                                            className="rounded-full border border-gray-200 dark:border-gray-700 p-1.5 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"
+                                            aria-label="Show setup instructions"
+                                        >
+                                            <Info className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                    {integration.connected ? (
+                                        <div className="bg-green-100 dark:bg-green-900/30 p-1.5 rounded-full">
+                                            <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                        </div>
+                                    ) : (
+                                        <div className="bg-gray-100 dark:bg-gray-800 p-1.5 rounded-full">
+                                            <X className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+
+                            {expandedInstructions[integration.id] && (
+                                <div className="mb-4 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-900/20 p-3 text-xs text-blue-900 dark:text-blue-200 whitespace-pre-line">
+                                    {getInstructionsText(integration)}
+                                </div>
+                            )}
 
                             {/* Stats Section */}
                             {integration.connected && integrationStats[integration.id] && (

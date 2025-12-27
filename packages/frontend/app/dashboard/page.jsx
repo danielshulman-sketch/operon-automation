@@ -13,12 +13,19 @@ export default function DashboardPage() {
         urgent: 0,
     });
     const [tasks, setTasks] = useState([]);
+    const [orgStats, setOrgStats] = useState([]);
 
     useEffect(() => {
         fetchUserData();
         fetchStats();
         fetchTasks();
     }, []);
+
+    useEffect(() => {
+        if (user?.isSuperadmin) {
+            fetchOrgStats();
+        }
+    }, [user?.isSuperadmin]);
 
     const fetchUserData = async () => {
         try {
@@ -73,6 +80,21 @@ export default function DashboardPage() {
         }
     };
 
+    const fetchOrgStats = async () => {
+        try {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch('/api/superadmin/organizations', {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setOrgStats(data.organizations || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch org stats:', error);
+        }
+    };
+
     const firstName = user?.first_name || 'there';
 
     const getPriorityBadge = (priority) => {
@@ -103,6 +125,80 @@ export default function DashboardPage() {
                 </h1>
                 <p className="text-white/50 text-sm">Loading...</p>
             </header>
+
+            {user?.isSuperadmin && (
+                <section className="bg-[#0f0f0f] rounded-2xl border border-white/5 shadow-[0_20px_70px_rgba(0,0,0,0.45)] p-8 space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-white/50">Superadmin</p>
+                            <h2 className="text-2xl font-semibold text-white">Organization Activity</h2>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                            <div className="text-white/70">
+                                Active:{' '}
+                                <span className="text-green-300 font-semibold">
+                                    {orgStats.reduce((sum, org) => sum + Number(org.active_user_count || 0), 0)}
+                                </span>
+                            </div>
+                            <div className="text-white/70">
+                                Inactive:{' '}
+                                <span className="text-red-300 font-semibold">
+                                    {orgStats.reduce((sum, org) => sum + Number(org.inactive_user_count || 0), 0)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {orgStats.length === 0 ? (
+                        <p className="text-white/60 text-sm">No organizations found.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {orgStats.map((org) => {
+                                const total = Number(org.total_user_count || 0);
+                                const active = Number(org.active_user_count || 0);
+                                const inactive = Number(org.inactive_user_count || 0);
+                                const activePercent = total ? Math.round((active / total) * 100) : 0;
+                                return (
+                                    <div
+                                        key={org.id}
+                                        className="bg-[#0c0c0c] rounded-2xl p-5 border border-white/5 hover:border-white/15 transition-colors"
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-white">{org.name}</h3>
+                                                <p className="text-xs text-white/50 mt-1">
+                                                    {active} active / {inactive} inactive
+                                                </p>
+                                            </div>
+                                            <span className="px-2.5 py-1 rounded-full text-xs bg-blue-500/15 text-blue-300">
+                                                {total} users
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-4">
+                                            <div className="flex items-center justify-between text-xs text-white/50 mb-2">
+                                                <span>Active share</span>
+                                                <span>{activePercent}%</span>
+                                            </div>
+                                            <div className="h-2 rounded-full bg-[#121212] overflow-hidden border border-white/5">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-green-500/70 to-green-300/80"
+                                                    style={{ width: `${activePercent}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 flex items-center justify-between text-xs">
+                                            <span className="text-white/50">Open tasks</span>
+                                            <span className="text-amber-300 font-semibold">{org.task_count || 0}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">

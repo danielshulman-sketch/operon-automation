@@ -1,23 +1,25 @@
 import { NextResponse } from 'next/server';
 import { requireAuth } from '@/utils/auth';
 import { query } from '@/utils/db';
-import { decryptValue } from '../../../../lib/automation/encryption';
+import { decryptValue } from '@/lib/automation/encryption';
 import { ensureIntegrationCredentialsTable } from '@/utils/ensure-integration-credentials';
 
 // Import integrations
-import { slackIntegration } from '../../../../lib/integrations/slack';
-import { googleSheetsIntegration } from '../../../../lib/integrations/google-sheets';
-import { notionIntegration } from '../../../../lib/integrations/notion';
-import { stripeIntegration } from '../../../../lib/integrations/stripe';
-import { emailIntegration } from '../../../../lib/integrations/email';
-import { kartraIntegration } from '../../../../lib/integrations/kartra';
-import { mailerliteIntegration } from '../../../../lib/integrations/mailerlite';
-import { mailchimpIntegration } from '../../../../lib/integrations/mailchimp';
+import { slackIntegration } from '@/lib/integrations/slack';
+import { googleSheetsIntegration } from '@/lib/integrations/google-sheets';
+import { notionIntegration } from '@/lib/integrations/notion';
+import { airtableIntegration } from '@/lib/integrations/airtable';
+import { stripeIntegration } from '@/lib/integrations/stripe';
+import { emailIntegration } from '@/lib/integrations/email';
+import { kartraIntegration } from '@/lib/integrations/kartra';
+import { mailerliteIntegration } from '@/lib/integrations/mailerlite';
+import { mailchimpIntegration } from '@/lib/integrations/mailchimp';
 
 const INTEGRATIONS = {
     slack: slackIntegration,
     google_sheets: googleSheetsIntegration,
     notion: notionIntegration,
+    airtable: airtableIntegration,
     stripe: stripeIntegration,
     email: emailIntegration,
     kartra: kartraIntegration,

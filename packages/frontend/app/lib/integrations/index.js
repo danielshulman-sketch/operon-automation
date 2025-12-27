@@ -12,11 +12,11 @@ export const INTEGRATIONS = {
         color: '#4A154B',
         actions: ['send_message', 'create_channel', 'schedule_message', 'invite_user'],
         helpUrl: 'https://api.slack.com/authentication/oauth-v2',
-        setupInstructions: '1. Go to https://api.slack.com/apps\n2. Click "Create New App" > "From scratch"\n3. Name your app and select workspace\n4. Go to "OAuth & Permissions"\n5. Add scopes: chat:write, channels:manage\n6. Click "Install to Workspace"',
+        setupInstructions: '1. Go to https://api.slack.com/apps and click "Create New App" > "From scratch"\n2. Name the app, choose a workspace, and create it\n3. Open "OAuth & Permissions" and add scopes: chat:write, channels:manage, channels:read, users:read, team:read\n4. Add redirect URL: {APP_URL}/api/integrations/oauth/callback\n5. Click "Save URLs" and then "Install to Workspace"\n6. Copy the Client ID and Client Secret from "Basic Information"\n7. Paste them into Operon OAuth Settings and connect',
         oauth: {
             authUrl: 'https://slack.com/oauth/v2/authorize',
             tokenUrl: 'https://slack.com/api/oauth.v2/access',
-            scopes: ['chat:write', 'channels:manage']
+            scopes: ['chat:write', 'channels:manage', 'channels:read', 'users:read', 'team:read']
         },
         actionSchemas: {
             send_message: [
@@ -46,7 +46,7 @@ export const INTEGRATIONS = {
         color: '#0F9D58',
         actions: ['read_rows', 'append_row', 'create_sheet', 'update_row', 'delete_row'],
         helpUrl: 'https://developers.google.com/sheets/api/guides/authorizing',
-        setupInstructions: '1. Go to Google Cloud Console\n2. Create a project > Enable Sheets API\n3. Create OAuth 2.0 credentials\n4. Add authorized redirect URIs\n5. Copy Client ID and Secret',
+        setupInstructions: '1. Go to Google Cloud Console (https://console.cloud.google.com/)\n2. Create or select a project, then enable the Google Sheets API\n3. Go to "APIs & Services" > "OAuth consent screen" and configure it\n4. Go to "Credentials" > "Create Credentials" > "OAuth client ID"\n5. Choose "Web application" and add redirect URI: {APP_URL}/api/integrations/oauth/callback\n6. Save and copy the Client ID and Client Secret\n7. Paste them into Operon OAuth Settings and connect',
         oauth: {
             authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
             tokenUrl: 'https://oauth2.googleapis.com/token',
@@ -83,7 +83,7 @@ export const INTEGRATIONS = {
         color: '#000000',
         actions: ['create_page', 'update_database'],
         helpUrl: 'https://developers.notion.com/docs/authorization',
-        setupInstructions: '1. Go to https://www.notion.so/my-integrations\n2. Click "New integration"\n3. Give it a name and select workspace\n4. Copy the Internal Integration Token\n5. Share pages with your integration',
+        setupInstructions: '1. Go to https://www.notion.so/my-integrations and click "New integration"\n2. Choose "Public integration" and select the workspace\n3. Add redirect URL: {APP_URL}/api/integrations/oauth/callback\n4. Copy the OAuth Client ID and Client Secret\n5. Paste them into Operon OAuth Settings and connect\n6. Share the target pages/databases with the integration',
         oauth: {
             authUrl: 'https://api.notion.com/v1/oauth/authorize',
             tokenUrl: 'https://api.notion.com/v1/oauth/token',
@@ -93,6 +93,47 @@ export const INTEGRATIONS = {
             create_page: [
                 { name: 'databaseId', label: 'Database ID', type: 'text', required: true },
                 { name: 'properties', label: 'Properties (JSON)', type: 'textarea', required: true }
+            ]
+        }
+    },
+
+    airtable: {
+        name: 'Airtable',
+        description: 'Manage bases, tables, and records',
+        icon: '',
+        authType: 'oauth2',
+        color: '#18BFFF',
+        actions: ['read_records', 'create_record', 'update_record', 'delete_record'],
+        helpUrl: 'https://airtable.com/developers/web/api/oauth-reference',
+        setupInstructions: '1. Go to https://airtable.com/create/oauth and create an OAuth integration\n2. Add redirect URI: {APP_URL}/api/integrations/oauth/callback\n3. Add scopes: data.records:read, data.records:write\n4. Save and copy the Client ID and Client Secret\n5. Paste them into Operon OAuth Settings and connect',
+        oauth: {
+            authUrl: 'https://airtable.com/oauth2/v1/authorize',
+            tokenUrl: 'https://airtable.com/oauth2/v1/token',
+            scopes: ['data.records:read', 'data.records:write']
+        },
+        actionSchemas: {
+            read_records: [
+                { name: 'base_id', label: 'Base ID', type: 'text', required: true, help: 'Starts with app...' },
+                { name: 'table_name', label: 'Table Name', type: 'text', required: true },
+                { name: 'view', label: 'View Name', type: 'text', help: 'Optional view name' },
+                { name: 'max_records', label: 'Max Records', type: 'number', help: 'Max 100' },
+                { name: 'filter_formula', label: 'Filter Formula', type: 'text', help: 'Airtable formula' }
+            ],
+            create_record: [
+                { name: 'base_id', label: 'Base ID', type: 'text', required: true },
+                { name: 'table_name', label: 'Table Name', type: 'text', required: true },
+                { name: 'fields', label: 'Fields (JSON)', type: 'textarea', required: true, help: '{"Name": "John", "Email": "john@example.com"}' }
+            ],
+            update_record: [
+                { name: 'base_id', label: 'Base ID', type: 'text', required: true },
+                { name: 'table_name', label: 'Table Name', type: 'text', required: true },
+                { name: 'record_id', label: 'Record ID', type: 'text', required: true, help: 'Starts with rec...' },
+                { name: 'fields', label: 'Fields (JSON)', type: 'textarea', required: true }
+            ],
+            delete_record: [
+                { name: 'base_id', label: 'Base ID', type: 'text', required: true },
+                { name: 'table_name', label: 'Table Name', type: 'text', required: true },
+                { name: 'record_id', label: 'Record ID', type: 'text', required: true }
             ]
         }
     },

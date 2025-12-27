@@ -13,11 +13,12 @@ import {
     MessageCircle,
     Settings,
     LogOut,
+    X,
     Building2,
     Book,
 } from 'lucide-react';
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ isOpen = false, onClose = () => { } }) {
     const pathname = usePathname();
     const [isAdmin, setIsAdmin] = useState(false);
     const [isSuperadmin, setIsSuperadmin] = useState(false);
@@ -61,6 +62,11 @@ export default function DashboardSidebar() {
             href: '/dashboard/knowledge-base',
         });
         navigationItems.push({
+            name: 'Reporting',
+            icon: BarChart3,
+            href: '/dashboard/reporting',
+        });
+        navigationItems.push({
             name: 'AI Settings',
             icon: Settings,
             href: '/dashboard/api-settings',
@@ -69,17 +75,27 @@ export default function DashboardSidebar() {
 
     if (isSuperadmin) {
         navigationItems.push({
-            name: 'Create Organizations',
+            name: 'Superadmin',
             icon: Building2,
             href: '/dashboard/superadmin',
         });
     }
 
     return (
-        <div className="w-64 h-screen bg-[#050c1b] text-white border-r border-white/10 flex flex-col fixed left-0 top-0 shadow-[12px_0_40px_rgba(5,12,27,0.9)]">
+        <div
+            className={`w-64 h-screen bg-[#050c1b] text-white border-r border-white/10 flex flex-col fixed left-0 top-0 shadow-[12px_0_40px_rgba(5,12,27,0.9)] z-50 transform transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+        >
             {/* Logo */}
-            <div className="p-6 border-b border-white/10">
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
                 <BrandMark withWordmark className="text-white" priority />
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="lg:hidden text-white/60 hover:text-white"
+                    aria-label="Close navigation"
+                >
+                    <X className="h-5 w-5" />
+                </button>
             </div>
 
             {/* Navigation */}
