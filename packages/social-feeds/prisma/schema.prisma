@@ -1,0 +1,163 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("user") // "user", "admin"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  workflows     Workflow[]
+  externalConnections ExternalConnection[]
+  subscription  Subscription?
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  status               String   @default("inactive") // active, trialing, past_due, canceled, unpaid, incomplete
+  currentPeriodEnd     DateTime?
+  priceId              String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model ExternalConnection {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  provider  String   // "google", "openai", "twitter", etc.
+  name      String?  // User-friendly name e.g. "My Standard Twitter"
+  credentials String // Encrypted JSON string
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Workflow {
+  id        String   @id @default(uuid())
+  name      String
+  description String?
+  isActive  Boolean  @default(false)
+  definition String    // The React Flow graph (nodes, edges, viewport)
+  accessLevel String @default("private") // public, private, scaled
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  
+  scheduleRules ScheduleRule[]
+  executions    WorkflowExecution[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ScheduleRule {
+  id         String   @id @default(uuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  type       String   // "cron", "one-off"
+  value      String   // Cron expression or ISO date string
+  timezone   String   @default("UTC")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model WorkflowExecution {
+  id          String    @id @default(uuid())
+  workflowId  String
+  workflow    Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  triggerType String    // "manual", "schedule"
+  status      String    // "pending", "running", "completed", "failed"
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  logs        String?     // Array of execution logs
+  
+  steps       ExecutionStep[]
+}
+
+model ExecutionStep {
+  id            String            @id @default(uuid())
+  executionId   String
+  execution     WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  nodeId        String            // matches node id in graph
+  nodeType      String
+  status        String            // "pending", "running", "completed", "failed"
+  input         String?
+  output        String?
+  error         String?
+  startedAt     DateTime          @default(now())
+  completedAt   DateTime?
+}
+
+model SourceItem {
+  id          String   @id @default(uuid())
+  workflowId  String
+  sourceId    String   // Identifier for the source node
+  externalId  String   // Unique ID from the source (e.g. RSS GUID, Sheet Row Hash)
+  dataHash    String   // Hash of the content to detect changes
+  processedAt DateTime @default(now())
+  
+  @@unique([workflowId, sourceId, externalId])
+}
+
+model PublishResult {
+  id          String   @id @default(uuid())
+  workflowId  String
+  executionId String
+  platform    String
+  postId      String?
+  postUrl     String?
+  status      String   // "success", "failed"
+  error       String?
+  publishedAt DateTime @default(now())
+}
