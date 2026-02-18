@@ -8,7 +8,7 @@ export const Sidebar = () => {
     };
 
     return (
-        <aside className="w-64 border-r bg-muted p-4 flex flex-col gap-4 h-full">
+        <aside className="w-64 border-r bg-muted p-4 flex flex-col gap-4 h-full overflow-y-auto">
             <div className="font-semibold text-lg mb-2">Workflow Nodes</div>
 
             <div className="text-sm font-medium text-muted-foreground mb-1">Triggers</div>
@@ -30,10 +30,10 @@ export const Sidebar = () => {
             <div className="text-sm font-medium text-muted-foreground mt-4 mb-1">Sources</div>
             <div
                 className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
-                onDragStart={(event) => onDragStart(event, 'rss-source', 'RSS Feed')}
+                onDragStart={(event) => onDragStart(event, 'rss-source', 'News URL')}
                 draggable
             >
-                RSS Feed
+                News URL
             </div>
             <div
                 className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
@@ -50,6 +50,13 @@ export const Sidebar = () => {
                 draggable
             >
                 AI Text Generation
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'blog-creation', 'Blog Creation')}
+                draggable
+            >
+                Blog Creation
             </div>
             <div
                 className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
@@ -73,6 +80,48 @@ export const Sidebar = () => {
                 draggable
             >
                 Facebook Publisher
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'instagram-publisher', 'Instagram Publisher')}
+                draggable
+            >
+                Instagram Publisher
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'linkedin-publisher', 'LinkedIn Publisher')}
+                draggable
+            >
+                LinkedIn Publisher
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'threads-publisher', 'Threads Publisher')}
+                draggable
+            >
+                Threads Publisher
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'wordpress-publisher', 'WordPress Publisher')}
+                draggable
+            >
+                WordPress Publisher
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'wix-publisher', 'Wix Publisher')}
+                draggable
+            >
+                Wix Publisher
+            </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'squarespace-publisher', 'Squarespace Publisher')}
+                draggable
+            >
+                Squarespace Publisher
             </div>
         </aside>
     );

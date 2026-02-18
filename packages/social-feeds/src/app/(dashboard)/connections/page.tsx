@@ -10,10 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useFacebookSDK } from '@/components/providers/FacebookSDKProvider';
 import {
     Facebook,
     Linkedin,
     Instagram,
+    AtSign,
+    Globe,
+    PenSquare,
     FileSpreadsheet,
     Rss,
     Bot,
@@ -31,7 +35,7 @@ import { toast } from 'sonner';
 export default function ConnectionsPage() {
     const store = useWorkflowStore();
     const [newAccountName, setNewAccountName] = useState('');
-    const [newAccountPlatform, setNewAccountPlatform] = useState<'facebook' | 'linkedin' | 'instagram'>('facebook');
+    const [newAccountPlatform, setNewAccountPlatform] = useState<'facebook' | 'linkedin' | 'instagram' | 'threads' | 'wordpress' | 'wix' | 'squarespace'>('facebook');
     const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
     const [newRSSUrl, setNewRSSUrl] = useState('');
     const [newRSSName, setNewRSSName] = useState('');
@@ -43,20 +47,53 @@ export default function ConnectionsPage() {
     const [facebookPages, setFacebookPages] = useState<any[]>([]);
     const [isFetchingPages, setIsFetchingPages] = useState(false);
 
-    const fetchFacebookPages = async () => {
-        if (!newAccountToken) return;
+    const { login: fbLogin, isLoaded: fbLoaded } = useFacebookSDK();
+
+    const handleFacebookLogin = async () => {
+        try {
+            const response = await fbLogin();
+            if (response.authResponse?.accessToken) {
+                setNewAccountToken(response.authResponse.accessToken);
+                // Automatically fetch pages after setting token
+                // We need to pass the token directly because state update might be async
+                await fetchFacebookPages(response.authResponse.accessToken);
+            }
+        } catch (error: any) {
+            console.error("Facebook Login Error:", error);
+            toast.error(`Facebook Login Failed: ${error.message}`);
+        }
+    };
+
+    const fetchFacebookPages = async (overrideToken?: string) => {
+        const tokenToUse = overrideToken || newAccountToken;
+        if (!tokenToUse) return;
+
         setIsFetchingPages(true);
         try {
-            const res = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${newAccountToken}`);
+            const res = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${tokenToUse}`);
             const data = await res.json();
-            if (data.data) {
-                setFacebookPages(data.data);
-            } else {
-                alert("No pages found or invalid token.");
+
+            if (data.error) {
+                console.error("Facebook API Error:", data.error);
+                toast.error(`Facebook Error: ${data.error.message}`);
+                return;
             }
-        } catch (error) {
-            console.error(error);
-            alert("Failed to fetch pages.");
+
+            if (data.data && Array.isArray(data.data)) {
+                if (data.data.length === 0) {
+                    console.warn("Token valid but 0 pages returned.");
+                    toast.error("Found 0 Pages. Did you select 'pages_show_list' AND check the boxes next to your pages in the popup?");
+                } else {
+                    setFacebookPages(data.data);
+                    toast.success(`Found ${data.data.length} pages`);
+                }
+            } else {
+                console.warn("Unexpected Facebook response:", data);
+                toast.error(`Invalid response: ${JSON.stringify(data)}`);
+            }
+        } catch (error: any) {
+            console.error("Fetch error:", error);
+            toast.error(`Network or Script Error: ${error.message}`);
         } finally {
             setIsFetchingPages(false);
         }
@@ -188,6 +225,10 @@ export default function ConnectionsPage() {
                                                 <SelectItem value="facebook">Facebook Page</SelectItem>
                                                 <SelectItem value="linkedin">LinkedIn Profile</SelectItem>
                                                 <SelectItem value="instagram">Instagram Account</SelectItem>
+                                                <SelectItem value="threads">Threads</SelectItem>
+                                                <SelectItem value="wordpress">WordPress</SelectItem>
+                                                <SelectItem value="wix">Wix</SelectItem>
+                                                <SelectItem value="squarespace">Squarespace</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -201,24 +242,69 @@ export default function ConnectionsPage() {
                                     </div>
                                     <div className="grid gap-2">
                                         <Label>Access Token</Label>
-                                        <div className="flex gap-2">
-                                            <Input
-                                                type="password"
-                                                placeholder={newAccountPlatform === 'facebook' ? "Paste User Access Token..." : "Paste Access Token..."}
-                                                value={newAccountToken}
-                                                onChange={(e) => setNewAccountToken(e.target.value)}
-                                            />
-                                            {newAccountPlatform === 'facebook' && (
-                                                <Button onClick={fetchFacebookPages} disabled={!newAccountToken || isFetchingPages} size="sm" variant="secondary">
-                                                    {isFetchingPages ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Fetch Pages"}
+
+                                        {newAccountPlatform === 'facebook' ? (
+                                            <div className="flex flex-col gap-3">
+                                                <Button
+                                                    onClick={handleFacebookLogin}
+                                                    disabled={!fbLoaded}
+                                                    className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white"
+                                                >
+                                                    <Facebook className="mr-2 h-4 w-4" />
+                                                    Connect with Facebook
                                                 </Button>
-                                            )}
-                                        </div>
-                                        <p className="text-[10px] text-muted-foreground">
-                                            {newAccountPlatform === 'facebook'
-                                                ? "Enter User Token to list pages, or a Page Token to connect directly."
-                                                : "Required for posting. Kept encrypted."}
-                                        </p>
+                                                <p className="text-[10px] text-muted-foreground text-center">
+                                                    Opens a popup to authorize this app.
+                                                </p>
+
+                                                {/* Fallback for manual token if needed */}
+                                                <div className="relative">
+                                                    <div className="absolute inset-0 flex items-center">
+                                                        <span className="w-full border-t" />
+                                                    </div>
+                                                    <div className="relative flex justify-center text-xs uppercase">
+                                                        <span className="bg-background px-2 text-muted-foreground">Or paste token</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        type="password"
+                                                        placeholder="Paste User Access Token..."
+                                                        value={newAccountToken}
+                                                        onChange={(e) => setNewAccountToken(e.target.value)}
+                                                    />
+                                                    <Button onClick={() => fetchFacebookPages()} disabled={!newAccountToken || isFetchingPages} size="sm" variant="secondary">
+                                                        Fetch
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : newAccountPlatform === 'linkedin' ? (
+                                            <div className="flex flex-col gap-3">
+                                                <Button
+                                                    onClick={() => window.location.href = '/api/auth/linkedin'}
+                                                    className="w-full bg-[#0A66C2] hover:bg-[#004182] text-white"
+                                                >
+                                                    <Linkedin className="mr-2 h-4 w-4" />
+                                                    Connect with LinkedIn
+                                                </Button>
+                                                <p className="text-[10px] text-muted-foreground text-center">
+                                                    You&apos;ll be redirected to LinkedIn to authorize posting.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-2">
+                                                <Input
+                                                    type="password"
+                                                    placeholder="Paste Access Token..."
+                                                    value={newAccountToken}
+                                                    onChange={(e) => setNewAccountToken(e.target.value)}
+                                                />
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Required for posting. Kept encrypted.
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {facebookPages.length > 0 && newAccountPlatform === 'facebook' && (
@@ -259,6 +345,10 @@ export default function ConnectionsPage() {
                                     {account.platform === 'facebook' && <Facebook className="h-4 w-4 text-blue-600" />}
                                     {account.platform === 'linkedin' && <Linkedin className="h-4 w-4 text-blue-700" />}
                                     {account.platform === 'instagram' && <Instagram className="h-4 w-4 text-pink-600" />}
+                                    {account.platform === 'threads' && <AtSign className="h-4 w-4 text-gray-700" />}
+                                    {account.platform === 'wordpress' && <PenSquare className="h-4 w-4 text-indigo-600" />}
+                                    {account.platform === 'wix' && <Globe className="h-4 w-4 text-purple-600" />}
+                                    {account.platform === 'squarespace' && <Globe className="h-4 w-4 text-zinc-700" />}
                                 </CardHeader>
                                 <CardContent>
                                     <div className="flex items-center gap-2 mt-2">

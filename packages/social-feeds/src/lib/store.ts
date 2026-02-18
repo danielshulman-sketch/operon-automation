@@ -9,7 +9,7 @@ interface Persona {
 
 export interface SocialAccount {
     id: string;
-    platform: 'facebook' | 'linkedin' | 'instagram';
+    platform: 'facebook' | 'linkedin' | 'instagram' | 'threads' | 'wordpress' | 'wix' | 'squarespace';
     name: string;
     status: 'active' | 'expired';
     username?: string;

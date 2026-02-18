@@ -5,6 +5,13 @@ const connection = {
     port: parseInt(process.env.REDIS_PORT || '6379'),
 };
 
-export const workflowQueue = new Queue('workflow-execution', {
-    connection,
-});
+let queue: Queue;
+
+export const getWorkflowQueue = () => {
+    if (!queue) {
+        queue = new Queue('workflow-execution', {
+            connection,
+        });
+    }
+    return queue;
+};

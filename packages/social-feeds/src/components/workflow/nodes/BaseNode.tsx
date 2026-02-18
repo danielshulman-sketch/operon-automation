@@ -28,7 +28,7 @@ export const BaseNode = ({
 }: BaseNodeProps) => {
     return (
         <Card className={cn(
-            "w-40 shadow-sm transition-all duration-200 border",
+            "w-32 shadow-sm transition-all duration-200 border",
             selected ? "border-primary ring-1 ring-primary" : "border-border",
             "hover:border-primary/50"
         )}>

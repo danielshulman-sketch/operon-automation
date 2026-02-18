@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useWorkflowStore } from '@/lib/store';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -10,9 +10,65 @@ import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2 } from 'lucide-react';
 
 export const NodeConfigPanel = () => {
-    const { selectedNode, isConfigPanelOpen, toggleConfigPanel, nodes, setNodes } = useWorkflowStore();
+    const { selectedNode: storedSelectedNode, isConfigPanelOpen, toggleConfigPanel, nodes, setNodes, edges, setEdges } = useWorkflowStore();
+    const [testLoading, setTestLoading] = useState(false);
+    const [testResult, setTestResult] = useState<string | null>(null);
+    const [testError, setTestError] = useState<string | null>(null);
+
+    // Always get the latest version of the node from the nodes array to ensure reactivity
+    const selectedNode = nodes.find(n => n.id === storedSelectedNode?.id);
 
     if (!selectedNode) return null;
+
+    const handleTestExecution = async () => {
+        setTestLoading(true);
+        setTestResult(null);
+        setTestError(null);
+        try {
+            // Check if we need to substitute variables
+            let finalTaskPrompt = (selectedNode.data.taskPrompt as string) || '';
+            if (selectedNode.type === 'ai-generation' && selectedNode.data.testInput) {
+                finalTaskPrompt = finalTaskPrompt.replace('{{content}}', selectedNode.data.testInput as string);
+            }
+
+            // Determine default provider based on node type
+            const defaultProvider = selectedNode.type === 'image-generation' ? 'dalle-3' : 'openai';
+
+            const res = await fetch('/api/test-node', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nodeType: selectedNode.type,
+                    masterPrompt: selectedNode.data.masterPrompt || '',
+                    taskPrompt: finalTaskPrompt,
+                    provider: selectedNode.data.provider || defaultProvider,
+                    prompt: selectedNode.data.prompt || '',
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTestResult(data.result);
+            } else {
+                setTestError(data.error || 'Test failed');
+            }
+        } catch (err: any) {
+            setTestError(err.message || 'Network error');
+        } finally {
+            setTestLoading(false);
+        }
+    };
+
+    const handleDeleteNode = () => {
+        if (!selectedNode) return;
+        // Remove edges connected to this node
+        const newEdges = edges.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
+        setEdges(newEdges);
+        // Remove the node itself
+        const newNodes = nodes.filter(n => n.id !== selectedNode.id);
+        setNodes(newNodes);
+        // Close the panel
+        toggleConfigPanel(false);
+    };
 
     const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newLabel = e.target.value;
@@ -99,8 +155,22 @@ export const NodeConfigPanel = () => {
                 return (
                     <div className="space-y-4">
                         <div className="grid gap-2">
-                            <Label>RSS Feed URL</Label>
-                            <Input placeholder="https://example.com/feed.xml" />
+                            <Label>News URL or Search Query</Label>
+                            <Input
+                                placeholder="AI news  or  https://www.bbc.com/news/..."
+                                value={(selectedNode?.data.url as string) || ''}
+                                onChange={(e) => {
+                                    if (!selectedNode) return;
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, url: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                Enter a search term (e.g. &quot;AI news&quot;) or paste a single article URL.
+                            </p>
                         </div>
                     </div>
                 );
@@ -189,6 +259,91 @@ export const NodeConfigPanel = () => {
                         </div>
 
                         <div className="grid gap-2">
+                            <Label>Content Source</Label>
+                            <Select
+                                value={(selectedNode.data.contentSource as string) || 'upstream'}
+                                onValueChange={(val) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, contentSource: val } }
+                                            : n
+                                    ));
+                                }}
+                            >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="upstream">Upstream (Previous Node)</SelectItem>
+                                    <SelectItem value="rss">RSS Feed</SelectItem>
+                                    <SelectItem value="google-sheets">Google Sheets</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            {(selectedNode.data.contentSource === 'rss') && (
+                                <Select
+                                    value={(selectedNode.data.rssFeedId as string) || ''}
+                                    onValueChange={(val) => {
+                                        const feed = useWorkflowStore.getState().rssFeeds.find(f => f.id === val);
+                                        setNodes(nodes.map(n =>
+                                            n.id === selectedNode.id
+                                                ? { ...n, data: { ...n.data, rssFeedId: val, rssUrl: feed?.url } }
+                                                : n
+                                        ));
+                                    }}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="Select RSS Feed" /></SelectTrigger>
+                                    <SelectContent>
+                                        {useWorkflowStore.getState().rssFeeds.map(feed => (
+                                            <SelectItem key={feed.id} value={feed.id}>{feed.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+
+                            {(selectedNode.data.contentSource === 'google-sheets') && (
+                                <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                                    <div className="grid gap-1">
+                                        <Label className="text-xs">Spreadsheet ID</Label>
+                                        <Input
+                                            className="h-8 text-xs"
+                                            value={(selectedNode.data.sheetId as string) || ''}
+                                            onChange={(e) => {
+                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                            }}
+                                            placeholder={useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || "ID..."}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid gap-1">
+                                            <Label className="text-xs">Tab Name</Label>
+                                            <Input
+                                                className="h-8 text-xs"
+                                                value={(selectedNode.data.sheetTab as string) || ''}
+                                                onChange={(e) => {
+                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                }}
+                                                placeholder="Sheet1"
+                                            />
+                                        </div>
+                                        <div className="grid gap-1">
+                                            <Label className="text-xs">Content Col</Label>
+                                            <Input
+                                                className="h-8 text-xs"
+                                                value={(selectedNode.data.sheetColumn as string) || ''}
+                                                onChange={(e) => {
+                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetColumn: e.target.value } } : n));
+                                                }}
+                                                placeholder="A"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                        Leave blank to use Global Settings.
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid gap-2">
                             <Label>Task Prompt</Label>
                             <div className="text-xs text-muted-foreground mb-1">Use {"{{content}}"} to insert source text.</div>
                             <textarea className="flex h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -203,6 +358,129 @@ export const NodeConfigPanel = () => {
                                 }}
                             />
                         </div>
+
+                        <div className="grid gap-2">
+                            <Label>Test Input Content</Label>
+                            <div className="text-xs text-muted-foreground mb-1">Content to substitute for {"{{content}}"} during testing.</div>
+                            <textarea
+                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Paste article text or simulation content here..."
+                                value={(selectedNode.data.testInput as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, testInput: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                        </div>
+                    </div>
+                );
+
+            case 'blog-creation':
+                return (
+                    <div className="space-y-4">
+                        <div className="grid gap-2">
+                            <Label>Content Source</Label>
+                            <Select
+                                value={(selectedNode.data.contentSource as string) || 'upstream'}
+                                onValueChange={(val) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, contentSource: val } }
+                                            : n
+                                    ));
+                                }}
+                            >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="upstream">Upstream (Previous Node)</SelectItem>
+                                    <SelectItem value="rss">RSS Feed</SelectItem>
+                                    <SelectItem value="google-sheets">Google Sheets</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            {(selectedNode.data.contentSource === 'rss') && (
+                                <Select
+                                    value={(selectedNode.data.rssFeedId as string) || ''}
+                                    onValueChange={(val) => {
+                                        const feed = useWorkflowStore.getState().rssFeeds.find(f => f.id === val);
+                                        setNodes(nodes.map(n =>
+                                            n.id === selectedNode.id
+                                                ? { ...n, data: { ...n.data, rssFeedId: val, rssUrl: feed?.url } }
+                                                : n
+                                        ));
+                                    }}
+                                >
+                                    <SelectTrigger><SelectValue placeholder="Select RSS Feed" /></SelectTrigger>
+                                    <SelectContent>
+                                        {useWorkflowStore.getState().rssFeeds.map(feed => (
+                                            <SelectItem key={feed.id} value={feed.id}>{feed.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+
+                            {(selectedNode.data.contentSource === 'google-sheets') && (
+                                <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                                    <div className="grid gap-1">
+                                        <Label className="text-xs">Spreadsheet ID</Label>
+                                        <Input
+                                            className="h-8 text-xs"
+                                            value={(selectedNode.data.sheetId as string) || ''}
+                                            onChange={(e) => {
+                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                            }}
+                                            placeholder={useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || "ID..."}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid gap-1">
+                                            <Label className="text-xs">Tab Name</Label>
+                                            <Input
+                                                className="h-8 text-xs"
+                                                value={(selectedNode.data.sheetTab as string) || ''}
+                                                onChange={(e) => {
+                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                }}
+                                                placeholder="Sheet1"
+                                            />
+                                        </div>
+                                        <div className="grid gap-1">
+                                            <Label className="text-xs">Content Col</Label>
+                                            <Input
+                                                className="h-8 text-xs"
+                                                value={(selectedNode.data.sheetColumn as string) || ''}
+                                                onChange={(e) => {
+                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetColumn: e.target.value } } : n));
+                                                }}
+                                                placeholder="A"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Blog Style Prompt</Label>
+                            <textarea
+                                className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Write a detailed blog post with intro, key points, and conclusion. Use a clear headline and subheadings."
+                                value={(selectedNode.data.blogPrompt as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, blogPrompt: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                Uses upstream content (for example news source output) and generates blog-ready text.
+                            </p>
+                        </div>
                     </div>
                 );
 
@@ -211,11 +489,21 @@ export const NodeConfigPanel = () => {
                     <div className="space-y-4">
                         <div className="grid gap-2">
                             <Label>Image Provider</Label>
-                            <Select defaultValue="dalle-3">
+                            <Select
+                                value={(selectedNode.data.provider as string) || 'dalle-3'}
+                                onValueChange={(val) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, provider: val } }
+                                            : n
+                                    ));
+                                }}
+                            >
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="dalle-3">DALL-E 3</SelectItem>
-                                    <SelectItem value="stable-diffusion">Stable Diffusion</SelectItem>
+                                    <SelectItem value="dalle-3">DALL-E 3 (OpenAI)</SelectItem>
+                                    <SelectItem value="nano-banana">Nano Banana (Gemini Flash)</SelectItem>
+                                    <SelectItem value="stable-diffusion">Stable Diffusion (Coming Soon)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -240,10 +528,18 @@ export const NodeConfigPanel = () => {
             case 'facebook-publisher':
             case 'linkedin-publisher':
             case 'instagram-publisher':
+            case 'threads-publisher':
+            case 'wordpress-publisher':
+            case 'wix-publisher':
+            case 'squarespace-publisher':
                 const platformMap: Record<string, string> = {
                     'facebook-publisher': 'facebook',
                     'linkedin-publisher': 'linkedin',
-                    'instagram-publisher': 'instagram'
+                    'instagram-publisher': 'instagram',
+                    'threads-publisher': 'threads',
+                    'wordpress-publisher': 'wordpress',
+                    'wix-publisher': 'wix',
+                    'squarespace-publisher': 'squarespace',
                 };
                 const platform = platformMap[selectedNode.type || ''] || 'facebook';
                 const availableAccounts = useWorkflowStore.getState().accounts.filter(a => a.platform === platform);
@@ -288,6 +584,48 @@ export const NodeConfigPanel = () => {
                                 </Select>
                             </div>
                         )}
+
+                        {(selectedNode.type === 'wordpress-publisher' || selectedNode.type === 'wix-publisher' || selectedNode.type === 'squarespace-publisher') && (
+                            <div className="grid gap-2">
+                                <Label>Site URL / API Endpoint</Label>
+                                <Input
+                                    placeholder={
+                                        selectedNode.type === 'wordpress-publisher'
+                                            ? "https://yoursite.com"
+                                            : "https://api.example.com/publish"
+                                    }
+                                    value={(selectedNode.data.siteUrl as string) || ''}
+                                    onChange={(e) => {
+                                        setNodes(nodes.map(n =>
+                                            n.id === selectedNode.id
+                                                ? { ...n, data: { ...n.data, siteUrl: e.target.value } }
+                                                : n
+                                        ));
+                                    }}
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                    For WordPress this is the site URL. For Wix/Squarespace this can be a publish endpoint/webhook.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="grid gap-2">
+                            <Label>Image URL (Optional)</Label>
+                            <Input
+                                placeholder="https://example.com/image.jpg (or leave empty to use generated image)"
+                                value={(selectedNode.data.imageUrl as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode.id
+                                            ? { ...n, data: { ...n.data, imageUrl: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                If you have an Image Generation node before this, leave this empty to use its output automatically.
+                            </p>
+                        </div>
 
                         <div className="grid gap-2">
                             <Label>Text Source</Label>
@@ -378,8 +716,40 @@ export const NodeConfigPanel = () => {
 
                         {renderSpecificConfig()}
 
-                        <div className="pt-4">
-                            <Button className="w-full" variant="secondary" size="sm">Test Node Execution</Button>
+                        <div className="pt-4 space-y-3">
+                            <Button
+                                className="w-full"
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleTestExecution}
+                                disabled={testLoading}
+                            >
+                                {testLoading ? 'Testing...' : 'Test Node Execution'}
+                            </Button>
+                            {testResult && (
+                                <div className="rounded-md border bg-muted/50 p-3 text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                                    <p className="font-medium text-xs text-green-600 mb-1">✓ Test Result</p>
+                                    {testResult}
+                                </div>
+                            )}
+                            {testError && (
+                                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                                    <p className="font-medium text-xs mb-1">✗ Error</p>
+                                    {testError}
+                                </div>
+                            )}
+
+                            <Separator className="my-4" />
+
+                            <Button
+                                className="w-full bg-red-100 hover:bg-red-200 text-red-700 border-red-200"
+                                variant="outline"
+                                size="sm"
+                                onClick={handleDeleteNode}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Node
+                            </Button>
                         </div>
                     </TabsContent>
 

@@ -14,9 +14,24 @@ export default function DataSyncProvider({
 
     useEffect(() => {
         if (session?.user) {
+            const parseJsonResponse = async (res: Response) => {
+                const contentType = res.headers.get("content-type") || "";
+                const bodyText = await res.text();
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${bodyText.slice(0, 200)}`);
+                }
+
+                if (!contentType.includes("application/json")) {
+                    throw new Error(`Expected JSON but got '${contentType || "unknown"}'`);
+                }
+
+                return bodyText ? JSON.parse(bodyText) : null;
+            };
+
             // Fetch connections
             fetch('/api/connections')
-                .then(res => res.json())
+                .then(parseJsonResponse)
                 .then(data => {
                     if (Array.isArray(data)) {
                         // Ensure data matches SocialAccount interface
@@ -34,7 +49,7 @@ export default function DataSyncProvider({
 
             // Fetch personas
             fetch('/api/personas')
-                .then(res => res.json())
+                .then(parseJsonResponse)
                 .then(data => {
                     if (Array.isArray(data)) {
                         setPersonas(data);

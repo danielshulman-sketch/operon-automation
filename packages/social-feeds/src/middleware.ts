@@ -10,7 +10,7 @@ export const config = {
     matcher: [
         /*
          * Match all request paths except for the ones starting with:
-         * - api/auth (auth API routes)
+         * - api (all API routes should return API errors, not HTML redirects)
          * - _next/static (static files)
          * - _next/image (image optimization files)
          * - favicon.ico (favicon file)
@@ -18,6 +18,6 @@ export const config = {
          * - signup (signup page)
          * - pricing (pricing page)
          */
-        "/((?!api/auth|_next/static|_next/image|favicon.ico|login|signup|pricing).*)",
+        "/((?!api|_next/static|_next/image|favicon.ico|login|signup|pricing).*)",
     ],
 };

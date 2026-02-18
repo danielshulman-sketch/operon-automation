@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,6 +15,10 @@ model User {
   image         String?
   password      String?
   role          String    @default("user") // "user", "admin"
+  openaiApiKey  String?   // Per-user OpenAI API key
+  googleApiKey  String?   // Per-user Google Gemini API key
+  linkedinClientId     String?  // Per-user LinkedIn app Client ID
+  linkedinClientSecret String?  // Per-user LinkedIn app Client Secret
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

@@ -1,12 +1,44 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Activity, AlertTriangle, CheckCircle2, Calendar } from 'lucide-react';
+import { Plus, Activity, AlertTriangle, CheckCircle2, Calendar, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
+interface DashboardStats {
+    totalWorkflows: number;
+    activeWorkflows: number;
+}
+
 export default function DashboardPage() {
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('/api/workflows')
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setStats({
+                        totalWorkflows: data.length,
+                        activeWorkflows: data.filter((w: any) => w.isActive).length,
+                    });
+                } else {
+                    setStats({ totalWorkflows: 0, activeWorkflows: 0 });
+                }
+                setIsLoading(false);
+            })
+            .catch(() => {
+                setStats({ totalWorkflows: 0, activeWorkflows: 0 });
+                setIsLoading(false);
+            });
+    }, []);
+
+    if (isLoading) {
+        return <div className="flex h-full items-center justify-center py-20"><Loader2 className="animate-spin" /></div>;
+    }
+
     return (
         <div className="container mx-auto py-8">
             <div className="flex justify-between items-center mb-6">
@@ -29,75 +61,65 @@ export default function DashboardPage() {
                         <Activity className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">12</div>
-                        <p className="text-xs text-muted-foreground">+2 created this week</p>
+                        <div className="text-2xl font-bold">{stats?.totalWorkflows ?? 0}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {stats?.activeWorkflows ?? 0} active
+                        </p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Executions Today</CardTitle>
+                        <CardTitle className="text-sm font-medium">Active Workflows</CardTitle>
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">145</div>
-                        <p className="text-xs text-muted-foreground">98% success rate</p>
+                        <div className="text-2xl font-bold">{stats?.activeWorkflows ?? 0}</div>
+                        <p className="text-xs text-muted-foreground">Currently running</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Failed Runs</CardTitle>
-                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                        <CardTitle className="text-sm font-medium">Draft Workflows</CardTitle>
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">3</div>
-                        <p className="text-xs text-muted-foreground">Requires attention</p>
+                        <div className="text-2xl font-bold">{(stats?.totalWorkflows ?? 0) - (stats?.activeWorkflows ?? 0)}</div>
+                        <p className="text-xs text-muted-foreground">Not yet activated</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Next Scheduled</CardTitle>
+                        <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
                         <Calendar className="h-4 w-4 text-blue-600" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">14:00</div>
-                        <p className="text-xs text-muted-foreground">Tech News Digest</p>
+                        <Link href="/editor/new">
+                            <Button variant="outline" size="sm" className="w-full">
+                                <Plus className="mr-2 h-3 w-3" /> Create Workflow
+                            </Button>
+                        </Link>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* RECENT ACTIVITY */}
-            <div className="space-y-4">
-                <h2 className="text-xl font-semibold tracking-tight">Recent Activity</h2>
+            {/* GETTING STARTED */}
+            {(stats?.totalWorkflows ?? 0) === 0 && (
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-base">Latest Executions</CardTitle>
+                        <CardTitle className="text-base">Get Started</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                                <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-2 h-2 rounded-full ${i === 3 ? 'bg-red-500' : 'bg-green-500'}`} />
-                                        <div>
-                                            <p className="text-sm font-medium">
-                                                {i === 3 ? 'Tech News Digest - Automated' : 'Daily Content Blast'}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">Triggered via Schedule • 10 mins ago</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-sm text-right">
-                                            <p className="font-medium">$0.02</p>
-                                            <p className="text-xs text-muted-foreground">AI Cost</p>
-                                        </div>
-                                        <Button variant="ghost" size="sm">View Log</Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            You have no workflows yet. Create your first workflow to start automating your social media posts.
+                        </p>
+                        <Link href="/editor/new">
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> Create Your First Workflow
+                            </Button>
+                        </Link>
                     </CardContent>
                 </Card>
-            </div>
+            )}
         </div>
     );
 }

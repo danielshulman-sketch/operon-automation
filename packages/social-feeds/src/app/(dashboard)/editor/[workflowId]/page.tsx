@@ -5,15 +5,15 @@ import { Canvas } from '@/components/workflow/Canvas';
 import { EditorHeader } from '@/components/workflow/EditorHeader';
 import { useWorkflowStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { useParams } from "next/navigation"; // Use useParams instead of props for client component
+import { useParams } from "next/navigation";
 
-// Note: Ensure the EditorPage receives params correctly or use useParams if easier
 export default function EditorPage() {
     const params = useParams();
     const workflowId = params.workflowId as string;
 
     const [workflowName, setWorkflowName] = useState("Loading...");
     const [isSaving, setIsSaving] = useState(false);
+    const [isRunning, setIsRunning] = useState(false);
     const { setNodes, setEdges, nodes, edges } = useWorkflowStore();
 
     useEffect(() => {
@@ -41,21 +41,13 @@ export default function EditorPage() {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const definition = {
-                nodes,
-                edges
-            };
-
+            const definition = { nodes, edges };
             const res = await fetch(`/api/workflows/${workflowId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    definition: definition // Prisma handles JSON
-                })
+                body: JSON.stringify({ name: workflowName, definition }),
             });
-
             if (!res.ok) throw new Error("Failed to save");
-
             toast.success("Workflow saved");
         } catch (error) {
             console.error(error);
@@ -65,13 +57,73 @@ export default function EditorPage() {
         }
     };
 
+    const handleRun = async () => {
+        // Auto-save first
+        setIsRunning(true);
+        try {
+            const definition = { nodes, edges };
+            await fetch(`/api/workflows/${workflowId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: workflowName, definition }),
+            });
+
+            const res = await fetch(`/api/workflows/${workflowId}/execute`, {
+                method: 'POST',
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                toast.error(data.error || 'Execution failed');
+                return;
+            }
+
+            if (data.status === 'completed') {
+                toast.success('Workflow executed successfully!');
+                // Show outputs in a readable way
+                const results = data.results || {};
+                for (const [nodeId, result] of Object.entries(results)) {
+                    const r = result as any;
+                    if (r.output && r.output.length > 0) {
+                        const node = nodes.find((n: any) => n.id === nodeId);
+                        const label = (node?.data?.label as string) || nodeId;
+                        toast.message(`${label}`, {
+                            description: r.output.substring(0, 200) + (r.output.length > 200 ? '...' : ''),
+                            duration: 10000,
+                        });
+                    }
+                }
+            } else {
+                toast.warning('Workflow completed with errors');
+                const results = data.results || {};
+                for (const [nodeId, result] of Object.entries(results)) {
+                    const r = result as any;
+                    if (r.status === 'failed') {
+                        const node = nodes.find((n: any) => n.id === nodeId);
+                        const label = (node?.data?.label as string) || nodeId;
+                        toast.error(`${label}: ${r.error}`);
+                    }
+                }
+            }
+        } catch (error: any) {
+            console.error(error);
+            toast.error("Failed to execute workflow");
+        } finally {
+            setIsRunning(false);
+        }
+    };
+
     return (
         <div className="flex h-screen flex-col">
             <EditorHeader
                 workflowName={workflowName}
+                workflowId={workflowId}
                 onSave={handleSave}
+                onNameChange={(name) => setWorkflowName(name)}
+                onRun={handleRun}
                 isSaving={isSaving}
-                isDirty={false} // TODO: Track dirty state
+                isRunning={isRunning}
+                isDirty={false}
             />
             <div className="flex-1 overflow-hidden">
                 <Canvas />

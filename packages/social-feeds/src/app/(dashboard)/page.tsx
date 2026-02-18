@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, MoreHorizontal, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit, Trash2, Loader2, Pencil, Check, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,9 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/workflows')
@@ -44,6 +47,13 @@ export default function WorkflowsPage() {
         setIsLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
 
   const handleCreateWorkflow = async () => {
     setIsCreating(true);
@@ -72,6 +82,39 @@ export default function WorkflowsPage() {
       toast.success("Workflow deleted");
     } catch (error) {
       toast.error("Failed to delete");
+    }
+  };
+
+  const startRename = (workflow: Workflow) => {
+    setRenamingId(workflow.id);
+    setRenameValue(workflow.name);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameValue('');
+  };
+
+  const submitRename = async (id: string) => {
+    const trimmed = renameValue.trim();
+    const original = workflows.find(w => w.id === id)?.name;
+    if (!trimmed || trimmed === original) {
+      cancelRename();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/workflows/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) throw new Error();
+      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, name: trimmed } : w));
+      toast.success('Workflow renamed');
+    } catch {
+      toast.error('Failed to rename workflow');
+    } finally {
+      cancelRename();
     }
   };
 
@@ -113,9 +156,48 @@ export default function WorkflowsPage() {
             {workflows.map((workflow) => (
               <TableRow key={workflow.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/editor/${workflow.id}`} className="hover:underline">
-                    {workflow.name}
-                  </Link>
+                  {renamingId === workflow.id ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        ref={renameInputRef}
+                        className="text-sm bg-transparent border-b border-primary outline-none px-1 py-0.5 min-w-[160px] max-w-[280px] font-medium"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={() => submitRename(workflow.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); submitRename(workflow.id); }
+                          if (e.key === 'Escape') cancelRename();
+                        }}
+                      />
+                      <button
+                        onMouseDown={(e) => { e.preventDefault(); submitRename(workflow.id); }}
+                        className="text-green-600 hover:text-green-700 p-0.5"
+                        title="Confirm"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onMouseDown={(e) => { e.preventDefault(); cancelRename(); }}
+                        className="text-muted-foreground hover:text-foreground p-0.5"
+                        title="Cancel"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 group">
+                      <Link href={`/editor/${workflow.id}`} className="hover:underline">
+                        {workflow.name}
+                      </Link>
+                      <button
+                        onClick={() => startRename(workflow)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                        title="Rename"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={workflow.isActive ? 'default' : 'secondary'}>
@@ -137,6 +219,9 @@ export default function WorkflowsPage() {
                         <Link href={`/editor/${workflow.id}`} className="flex items-center w-full">
                           <Edit className="mr-2 h-4 w-4" /> Edit
                         </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => startRename(workflow)}>
+                        <Pencil className="mr-2 h-4 w-4" /> Rename
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(workflow.id)}>

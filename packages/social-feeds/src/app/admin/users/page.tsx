@@ -92,7 +92,7 @@ export default function AdminUsersPage() {
                                     </TableCell>
                                     <TableCell>
                                         {user.subscription ? (
-                                            <Badge variant={user.subscription.status === "active" ? "success" : "outline"}>
+                                            <Badge variant={user.subscription.status === "active" ? "default" : "outline"} className={user.subscription.status === "active" ? "bg-green-600 hover:bg-green-700" : ""}>
                                                 {user.subscription.plan || "Free"} ({user.subscription.status})
                                             </Badge>
                                         ) : (

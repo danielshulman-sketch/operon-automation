@@ -19,10 +19,10 @@ const SourceNode = ({ id, data, selected }: NodeProps) => {
             ]}
         >
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                    {isSheets ? 'Google Sheet' : 'RSS Feed'}
+                <span className="text-[10px] text-muted-foreground">
+                    {isSheets ? 'Google Sheet' : 'News URL'}
                 </span>
-                <div className="text-xs truncate max-w-[200px] opacity-75">
+                <div className="text-[10px] truncate max-w-[110px] opacity-75">
                     {data.url ? (data.url as string) : 'No source configured'}
                 </div>
             </div>

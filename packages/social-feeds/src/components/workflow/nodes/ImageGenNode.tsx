@@ -17,8 +17,8 @@ const ImageGenNode = ({ id, data, selected }: NodeProps) => {
             ]}
         >
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">AI Image</span>
-                <div className="text-xs bg-muted p-1 rounded truncate max-w-[150px]">
+                <span className="text-[10px] text-muted-foreground">AI Image</span>
+                <div className="text-[10px] bg-muted p-1 rounded truncate max-w-[110px]">
                     {(data.prompt as string) || 'Describe the image...'}
                 </div>
             </div>

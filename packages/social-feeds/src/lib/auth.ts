@@ -17,23 +17,30 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" }
             },
             async authorize(credentials) {
-                console.log("Authorize called with:", { email: credentials?.email });
+                console.log("Authorize called with full credentials:", credentials);
+
                 if (!credentials?.email || !credentials?.password) {
-                    console.log("Missing credentials");
+                    console.error("Missing credentials in authorize");
                     return null;
                 }
 
                 try {
-                    const user = await prisma.user.findUnique({
+                    // Normalize email to avoid case/whitespace login failures.
+                    const email = credentials.email.trim().toLowerCase();
+
+                    const user = await prisma.user.findFirst({
                         where: {
-                            email: credentials.email
+                            email: {
+                                equals: email,
+                                mode: "insensitive",
+                            },
                         }
                     });
 
-                    console.log("User found:", user ? { id: user.id, email: user.email, role: user.role } : "null");
+                    console.log("User found in DB:", user ? { id: user.id, email: user.email, role: user.role, hasPassword: !!user.password } : "NULL");
 
                     if (!user || !user.password) {
-                        console.log("User not found or no password");
+                        console.error("User not found or has no password");
                         return null;
                     }
 
@@ -42,9 +49,10 @@ export const authOptions: NextAuthOptions = {
                         user.password
                     );
 
-                    console.log("Password valid:", isPasswordValid);
+                    console.log("Password comparison result:", isPasswordValid);
 
                     if (!isPasswordValid) {
+                        console.error("Invalid password for user:", email);
                         return null;
                     }
 
@@ -55,7 +63,7 @@ export const authOptions: NextAuthOptions = {
                         role: user.role,
                     };
                 } catch (error) {
-                    console.error("Authorize error:", error);
+                    console.error("Authorize CAUGHT error:", error);
                     return null;
                 }
             }

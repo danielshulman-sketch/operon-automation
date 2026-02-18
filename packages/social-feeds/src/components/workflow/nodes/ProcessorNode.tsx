@@ -19,11 +19,11 @@ const ProcessorNode = ({ id, data, selected }: NodeProps) => {
             ]}
         >
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
+                <span className="text-[10px] text-muted-foreground">
                     {isRouter ? 'Split Execution' : 'Generate Content'}
                 </span>
                 {!isRouter && (
-                    <div className="text-xs bg-muted p-1 rounded">
+                    <div className="text-[10px] bg-muted p-1 rounded">
                         {(data.provider as string) || 'OpenAI'}
                     </div>
                 )}

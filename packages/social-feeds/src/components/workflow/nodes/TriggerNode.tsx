@@ -17,8 +17,8 @@ const TriggerNode = ({ id, data, selected }: NodeProps) => {
             handles={[{ type: 'source', position: Position.Bottom }]}
         >
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Type: {isAutomatic ? 'Schedule' : 'Manual'}</span>
-                {isAutomatic && <span className="font-mono text-xs bg-muted p-1 rounded">Every 1 hour</span>}
+                <span className="text-[10px] text-muted-foreground">Type: {isAutomatic ? 'Schedule' : 'Manual'}</span>
+                {isAutomatic && <span className="font-mono text-[10px] bg-muted p-1 rounded">Every 1 hour</span>}
             </div>
         </BaseNode>
     );

@@ -34,22 +34,39 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
-
-    const body = await req.json();
-    const { platform, name, accessToken, ...other } = body;
-
-    const connection = await prisma.externalConnection.create({
-        data: {
-            userId: session.user.id,
-            provider: platform,
-            name: name,
-            credentials: JSON.stringify({ accessToken, ...other })
+    console.log("POST /api/connections called");
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session?.user?.id) {
+            console.log("Unauthorized: No session");
+            return new NextResponse("Unauthorized", { status: 401 });
         }
-    });
 
-    return NextResponse.json(connection);
+        const body = await req.json();
+        console.log("Request body:", body);
+        const { platform, name, accessToken, ...other } = body;
+
+        if (!platform || !name || !accessToken) {
+            console.log("Missing fields:", { platform, name, accessToken });
+            return new NextResponse("Missing fields", { status: 400 });
+        }
+
+        console.log("Creating connection in DB...");
+        const connection = await prisma.externalConnection.create({
+            data: {
+                userId: session.user.id,
+                provider: platform,
+                name: name,
+                credentials: JSON.stringify({ accessToken, ...other })
+            }
+        });
+        console.log("Connection created:", connection.id);
+
+        return NextResponse.json(connection);
+    } catch (error: any) {
+        console.error("Error in POST /api/connections:", error);
+        return new NextResponse(error.message || "Internal Server Error", { status: 500 });
+    }
 }
 
 export async function DELETE(req: Request) {

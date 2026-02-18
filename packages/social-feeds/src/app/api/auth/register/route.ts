@@ -5,8 +5,9 @@ import bcrypt from "bcryptjs";
 export async function POST(req: Request) {
     try {
         const { email, password, name } = await req.json();
+        const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
 
-        if (!email || !password) {
+        if (!normalizedEmail || !password) {
             return NextResponse.json(
                 { message: "Missing email or password" },
                 { status: 400 }
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
         }
 
         const existingUser = await prisma.user.findUnique({
-            where: { email },
+            where: { email: normalizedEmail },
         });
 
         if (existingUser) {
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
         const user = await prisma.user.create({
             data: {
-                email,
+                email: normalizedEmail,
                 name,
                 password: hashedPassword,
             },
