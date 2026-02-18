@@ -123,6 +123,13 @@ export const Sidebar = () => {
             >
                 Squarespace Publisher
             </div>
+            <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'google-sheets-publisher', 'Google Sheets Publisher')}
+                draggable
+            >
+                Google Sheets Publisher
+            </div>
         </aside>
     );
 };

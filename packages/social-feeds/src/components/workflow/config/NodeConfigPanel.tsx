@@ -612,6 +612,7 @@ export const NodeConfigPanel = () => {
             case 'wordpress-publisher':
             case 'wix-publisher':
             case 'squarespace-publisher':
+            case 'google-sheets-publisher':
                 const platformMap: Record<string, string> = {
                     'facebook-publisher': 'facebook',
                     'linkedin-publisher': 'linkedin',
@@ -620,7 +621,90 @@ export const NodeConfigPanel = () => {
                     'wordpress-publisher': 'wordpress',
                     'wix-publisher': 'wix',
                     'squarespace-publisher': 'squarespace',
+                    'google-sheets-publisher': 'google-sheets',
                 };
+
+                if (selectedNode.type === 'google-sheets-publisher') {
+                    return (
+                        <div className="space-y-4">
+                            <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                                <div className="grid gap-1">
+                                    <Label className="text-xs">Spreadsheet ID</Label>
+                                    <Input
+                                        className="h-8 text-xs"
+                                        value={(selectedNode.data.sheetId as string) || ''}
+                                        onChange={(e) => {
+                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                        }}
+                                        placeholder={useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || "ID..."}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid gap-1">
+                                        <Label className="text-xs">Tab Name</Label>
+                                        <div className="flex gap-1">
+                                            {availableSheets.length > 0 ? (
+                                                <Select
+                                                    value={(selectedNode.data.sheetTab as string) || ''}
+                                                    onValueChange={(val) => {
+                                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Tab" /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {availableSheets.map(sheet => (
+                                                            <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <Input
+                                                    className="h-8 text-xs"
+                                                    value={(selectedNode.data.sheetTab as string) || ''}
+                                                    onChange={(e) => {
+                                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                    }}
+                                                    placeholder="Sheet1"
+                                                />
+                                            )}
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-8 w-8 shrink-0"
+                                                disabled={isFetchingSheets}
+                                                onClick={() => fetchSheets(selectedNode.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
+                                            >
+                                                <Plus className={`h-3 w-3 ${isFetchingSheets ? 'animate-spin' : ''}`} />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <Label className="text-xs">Content Column</Label>
+                                        <Input
+                                            className="h-8 text-xs"
+                                            value={(selectedNode.data.contentColumn as string) || ''}
+                                            onChange={(e) => {
+                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, contentColumn: e.target.value } } : n));
+                                            }}
+                                            placeholder="A"
+                                        />
+                                    </div>
+                                    <div className="grid gap-1">
+                                        <Label className="text-xs">Image Column</Label>
+                                        <Input
+                                            className="h-8 text-xs"
+                                            value={(selectedNode.data.imageColumn as string) || ''}
+                                            onChange={(e) => {
+                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imageColumn: e.target.value } } : n));
+                                            }}
+                                            placeholder="B (Optional)"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
                 const platform = platformMap[selectedNode.type || ''] || 'facebook';
                 const availableAccounts = useWorkflowStore.getState().accounts.filter(a => a.platform === platform);
 

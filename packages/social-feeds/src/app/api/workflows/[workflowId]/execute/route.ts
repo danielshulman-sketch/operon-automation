@@ -986,6 +986,110 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         break;
                     }
 
+                    case 'google-sheets-publisher': {
+                        const sheetId = node.data?.sheetId as string;
+                        const sheetTab = node.data?.sheetTab as string;
+                        const contentCol = (node.data?.contentColumn as string || 'A').toUpperCase();
+                        const imageCol = (node.data?.imageColumn as string || '').toUpperCase();
+
+                        if (!sheetId) throw new Error('Spreadsheet ID is required.');
+                        if (!sheetTab) throw new Error('Sheet Tab name is required.');
+
+                        const user = await prisma.user.findUnique({
+                            where: { id: session.user.id },
+                            select: { googleApiKey: true }
+                        });
+
+                        if (!user?.googleApiKey) throw new Error('Google API Key not found. Please configure it in Settings.');
+
+                        // Note: Writing to sheets usually requires OAuth access token with 'https://www.googleapis.com/auth/spreadsheets' scope.
+                        // Using API Key only works if the sheet is publicly editable (unlikely) or if we use a different auth method.
+                        // For now, we'll try to use the API Key, but if it fails, we might need to prompt for OAuth.
+                        // Ideally checking for a Google Account connection would be better, but let's stick to the requested quick implementation.
+
+                        // Actually, 'sheets.spreadsheets.values.append' requires OAuth 2.0. API Key is not sufficient for writing private user data.
+                        // However, since the user asked to "make write work", and we have a `google-sheets` generic integration...
+                        // If they are using a Service Account or similar, we might need that.
+                        // For this iteration, I'll attempt using the API Key (which might fail for private sheets) 
+                        // AND check if there's a connected Google account to use its token.
+
+                        const googleConnection = connections.find(c => c.provider === 'google');
+                        let accessToken = '';
+
+                        if (googleConnection) {
+                            try {
+                                const creds = JSON.parse(googleConnection.credentials);
+                                accessToken = creds.accessToken;
+                            } catch (e) {
+                                console.error("Failed to parse Google creds", e);
+                            }
+                        }
+
+                        // If no OAuth token, we can't write to private sheets.
+                        if (!accessToken && !user?.googleApiKey) {
+                            throw new Error('No Google connection or API Key found. Connect Google in Settings or Connections.');
+                        }
+
+                        const content = lastTextOutput || lastOutput || node.data?.content || '';
+                        const imageUrl = lastImageUrl || node.data?.imageUrl || '';
+
+                        const values = [];
+                        // Construct the row based on columns. We need to map columns A, B, C to indices 0, 1, 2.
+                        // Simplified approach: Create a row array large enough.
+                        const colToIndex = (col: string) => {
+                            let sum = 0;
+                            for (let i = 0; i < col.length; i++) {
+                                sum *= 26;
+                                sum += (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+                            }
+                            return sum - 1;
+                        };
+
+                        const rowData: string[] = [];
+                        if (content && contentCol) {
+                            const idx = colToIndex(contentCol);
+                            rowData[idx] = content;
+                        }
+                        if (imageUrl && imageCol) {
+                            const idx = colToIndex(imageCol);
+                            rowData[idx] = imageUrl;
+                        }
+
+                        // Fill gaps with empty strings
+                        for (let i = 0; i < rowData.length; i++) {
+                            if (rowData[i] === undefined) rowData[i] = '';
+                        }
+
+                        // Use append endpoint
+                        const range = `${sheetTab}!A1`;
+                        const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=USER_ENTERED&key=${user?.googleApiKey}`;
+
+                        const headers: any = { 'Content-Type': 'application/json' };
+                        if (accessToken) {
+                            headers['Authorization'] = `Bearer ${accessToken}`;
+                        }
+
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify({
+                                range,
+                                majorDimension: 'ROWS',
+                                values: [rowData],
+                            }),
+                        });
+
+                        const data = await res.json();
+                        if (!res.ok) {
+                            throw new Error(`Google Sheets API Error: ${data.error?.message || res.statusText}`);
+                        }
+
+                        output = `Successfully appended row to ${sheetTab}. Updated range: ${data.updates?.updatedRange}`;
+                        // We don't necessarily need to store a PublishResult for this unless we treat it as a publication.
+                        // But let's log it as a success outcome.
+                        break;
+                    }
+
                     default:
                         output = `Node "${node.type}" executed.`;
                 }
