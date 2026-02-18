@@ -206,11 +206,56 @@ export const NodeConfigPanel = () => {
                     <div className="space-y-4">
                         <div className="grid gap-2">
                             <Label>Spreadsheet ID / URL</Label>
-                            <Input placeholder="https://docs.google.com/spreadsheets/d/..." />
+                            <Input
+                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                value={(selectedNode.data.sheetId as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                }}
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label>Worksheet Name</Label>
-                            <Input placeholder="Sheet1" />
+                            <div className="flex gap-2">
+                                {availableSheets.length > 0 ? (
+                                    <Select
+                                        value={(selectedNode.data.sheetName as string) || ''}
+                                        onValueChange={(val) => {
+                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: val } } : n));
+                                        }}
+                                    >
+                                        <SelectTrigger><SelectValue placeholder="Select Tab" /></SelectTrigger>
+                                        <SelectContent>
+                                            {availableSheets.map(sheet => (
+                                                <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <Input
+                                        placeholder="Sheet1"
+                                        value={(selectedNode.data.sheetName as string) || ''}
+                                        onChange={(e) => {
+                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: e.target.value } } : n));
+                                        }}
+                                    />
+                                )}
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="shrink-0"
+                                    disabled={isFetchingSheets}
+                                    onClick={() => {
+                                        // Extract ID from URL if full URL is pasted
+                                        let id = selectedNode.data.sheetId as string || '';
+                                        const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                                        if (match) id = match[1];
+                                        fetchSheets(id);
+                                    }}
+                                >
+                                    <Plus className={`h-4 w-4 ${isFetchingSheets ? 'animate-spin' : ''}`} />
+                                </Button>
+                            </div>
                         </div>
                         <Separator />
                         <h4 className="font-medium text-sm">Column Mapping</h4>
