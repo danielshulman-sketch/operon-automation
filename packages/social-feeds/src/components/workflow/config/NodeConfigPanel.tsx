@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { useWorkflowStore } from '@/lib/store';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,31 @@ export const NodeConfigPanel = () => {
     const [testLoading, setTestLoading] = useState(false);
     const [testResult, setTestResult] = useState<string | null>(null);
     const [testError, setTestError] = useState<string | null>(null);
+    const [isFetchingSheets, setIsFetchingSheets] = useState(false);
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+
+    const fetchSheets = async (spreadsheetId: string) => {
+        if (!spreadsheetId) {
+            toast.error("Please enter a Spreadsheet ID first");
+            return;
+        }
+        setIsFetchingSheets(true);
+        try {
+            const res = await fetch(`/api/google/sheets/meta?spreadsheetId=${spreadsheetId}`);
+            const data = await res.json();
+            if (res.ok) {
+                setAvailableSheets(data.sheets || []);
+                toast.success(`Found ${data.sheets?.length || 0} sheets`);
+            } else {
+                toast.error(`Failed to fetch sheets: ${data.error}`);
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to fetch sheets");
+        } finally {
+            setIsFetchingSheets(false);
+        }
+    };
 
     // Always get the latest version of the node from the nodes array to ensure reactivity
     const selectedNode = nodes.find(n => n.id === storedSelectedNode?.id);
@@ -315,14 +341,41 @@ export const NodeConfigPanel = () => {
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="grid gap-1">
                                             <Label className="text-xs">Tab Name</Label>
-                                            <Input
-                                                className="h-8 text-xs"
-                                                value={(selectedNode.data.sheetTab as string) || ''}
-                                                onChange={(e) => {
-                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
-                                                }}
-                                                placeholder="Sheet1"
-                                            />
+                                            <div className="flex gap-1">
+                                                {availableSheets.length > 0 ? (
+                                                    <Select
+                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        onValueChange={(val) => {
+                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
+                                                        }}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Tab" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {availableSheets.map(sheet => (
+                                                                <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <Input
+                                                        className="h-8 text-xs"
+                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        onChange={(e) => {
+                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                        }}
+                                                        placeholder="Sheet1"
+                                                    />
+                                                )}
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-8 w-8 shrink-0"
+                                                    disabled={isFetchingSheets}
+                                                    onClick={() => fetchSheets(selectedNode.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
+                                                >
+                                                    <Plus className={`h-3 w-3 ${isFetchingSheets ? 'animate-spin' : ''}`} />
+                                                </Button>
+                                            </div>
                                         </div>
                                         <div className="grid gap-1">
                                             <Label className="text-xs">Content Col</Label>
@@ -438,14 +491,41 @@ export const NodeConfigPanel = () => {
                                     <div className="grid grid-cols-2 gap-2">
                                         <div className="grid gap-1">
                                             <Label className="text-xs">Tab Name</Label>
-                                            <Input
-                                                className="h-8 text-xs"
-                                                value={(selectedNode.data.sheetTab as string) || ''}
-                                                onChange={(e) => {
-                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
-                                                }}
-                                                placeholder="Sheet1"
-                                            />
+                                            <div className="flex gap-1">
+                                                {availableSheets.length > 0 ? (
+                                                    <Select
+                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        onValueChange={(val) => {
+                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
+                                                        }}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Tab" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {availableSheets.map(sheet => (
+                                                                <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <Input
+                                                        className="h-8 text-xs"
+                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        onChange={(e) => {
+                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                        }}
+                                                        placeholder="Sheet1"
+                                                    />
+                                                )}
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-8 w-8 shrink-0"
+                                                    disabled={isFetchingSheets}
+                                                    onClick={() => fetchSheets(selectedNode.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
+                                                >
+                                                    <Plus className={`h-3 w-3 ${isFetchingSheets ? 'animate-spin' : ''}`} />
+                                                </Button>
+                                            </div>
                                         </div>
                                         <div className="grid gap-1">
                                             <Label className="text-xs">Content Col</Label>
