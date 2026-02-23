@@ -275,7 +275,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                             const actualRow = startRow + usedRowIndex;
                             const markRange = `${sheetName}!${statusCol}${actualRow}`;
                             console.log('[SHEETS-SOURCE] Marking row', actualRow, 'as done in range:', markRange);
-                            const writeToken = await getGoogleWriteAccessToken();
+                            const writeToken = await getGoogleWriteAccessToken(session.user.id);
                             console.log('[SHEETS-SOURCE] Has OAuth token:', !!writeToken);
                             const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
                             let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
@@ -368,7 +368,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                         } else {
                                             const actualRow = startRow + usedRowIndex;
                                             const markRange = `${tab}!${statusCol}${actualRow}`;
-                                            const writeToken = await getGoogleWriteAccessToken();
+                                            const writeToken = await getGoogleWriteAccessToken(session.user.id);
                                             const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
                                             let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
                                             if (writeToken) {
@@ -382,9 +382,13 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                                     headers: writeHeaders,
                                                     body: JSON.stringify({ values: [['done']] }),
                                                 });
-                                                if (!markRes.ok) throw new Error(`Failed to mark row as done`);
+                                                if (!markRes.ok) {
+                                                    const markText = await markRes.text();
+                                                    throw new Error(`Failed to mark row as done: ${markText || markRes.statusText}`);
+                                                }
                                             } catch (markErr) {
                                                 console.error('[AI-GEN] Failed to mark row as done', markErr);
+                                                throw new Error(`Failed to mark row as done: ${markErr}`);
                                             }
                                         }
                                     } else {
@@ -533,7 +537,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                         } else {
                                             const actualRow = startRow + usedRowIndex;
                                             const markRange = `${tab}!${statusCol}${actualRow}`;
-                                            const writeToken = await getGoogleWriteAccessToken();
+                                            const writeToken = await getGoogleWriteAccessToken(session.user.id);
                                             const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
                                             let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
                                             if (writeToken) {
@@ -547,9 +551,13 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                                     headers: writeHeaders,
                                                     body: JSON.stringify({ values: [['done']] }),
                                                 });
-                                                if (!markRes.ok) throw new Error(`Failed to mark row as done`);
+                                                if (!markRes.ok) {
+                                                    const markText = await markRes.text();
+                                                    throw new Error(`Failed to mark row as done: ${markText || markRes.statusText}`);
+                                                }
                                             } catch (markErr) {
                                                 console.error('[BLOG-CREATION] Failed to mark row as done', markErr);
+                                                throw new Error(`Failed to mark row as done: ${markErr}`);
                                             }
                                         }
                                     } else {
@@ -1343,14 +1351,20 @@ function parseStartRowFromRange(rangeOpt: string | undefined): number {
     return 1;
 }
 
-// Helper: Returns a valid OAuth 2.0 token if possible, else null. (Placeholder implementation for now)
-async function getGoogleWriteAccessToken(): Promise<string | null> {
+// Helper: Get OAuth 2.0 access token to write to Google Sheets
+async function getGoogleWriteAccessToken(userId: string): Promise<string | null> {
     try {
-        // Typically we would fetch the user's Google connection from the DB and verify OAuth tokens, 
-        // refreshing if needed to get an access_token. We'll leave this functional but empty for this scoped fix, 
-        // leaning on their API key mostly per the old implementation.
+        const connection = await prisma.externalConnection.findFirst({
+            where: { userId, provider: 'google' }
+        });
+
+        if (connection) {
+            const creds = JSON.parse(connection.credentials);
+            return creds.accessToken || null;
+        }
         return null;
-    } catch {
+    } catch (e) {
+        console.error("Failed to fetch Google OAuth token:", e);
         return null;
     }
 }
