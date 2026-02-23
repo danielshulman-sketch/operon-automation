@@ -36,6 +36,11 @@ export default function SettingsPage() {
     const [linkedinClientIdPreview, setLinkedinClientIdPreview] = useState('');
     const [showLinkedinSecret, setShowLinkedinSecret] = useState(false);
     const [isSavingLinkedin, setIsSavingLinkedin] = useState(false);
+    const [googleApiKey, setGoogleApiKey] = useState('');
+    const [hasGoogleApiKey, setHasGoogleApiKey] = useState(false);
+    const [googleApiKeyPreview, setGoogleApiKeyPreview] = useState('');
+    const [showGoogleKey, setShowGoogleKey] = useState(false);
+    const [isSavingGoogleKey, setIsSavingGoogleKey] = useState(false);
 
     useEffect(() => {
         fetch('/api/user/settings')
@@ -50,6 +55,10 @@ export default function SettingsPage() {
                 if (data.hasLinkedinCredentials) {
                     setHasLinkedinCredentials(true);
                     setLinkedinClientIdPreview(data.linkedinClientId || '');
+                }
+                if (data.hasGoogleApiKey) {
+                    setHasGoogleApiKey(true);
+                    setGoogleApiKeyPreview(data.googleApiKeyPreview || '');
                 }
                 setIsLoading(false);
             })
@@ -114,6 +123,50 @@ export default function SettingsPage() {
             toast.error('Failed to remove API key');
         } finally {
             setIsSavingKey(false);
+        }
+    };
+
+    const handleSaveGoogleKey = async () => {
+        if (!googleApiKey.trim()) {
+            toast.error('Please enter a Google API key');
+            return;
+        }
+        setIsSavingGoogleKey(true);
+        try {
+            const res = await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ googleApiKey: googleApiKey.trim() }),
+            });
+            if (!res.ok) throw new Error();
+            setHasGoogleApiKey(true);
+            setGoogleApiKeyPreview(`...${googleApiKey.trim().slice(-4)}`);
+            setGoogleApiKey('');
+            toast.success('Google API key saved! You can now fetch sheet tabs.');
+        } catch {
+            toast.error('Failed to save Google API key');
+        } finally {
+            setIsSavingGoogleKey(false);
+        }
+    };
+
+    const handleRemoveGoogleKey = async () => {
+        setIsSavingGoogleKey(true);
+        try {
+            const res = await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ googleApiKey: null }),
+            });
+            if (!res.ok) throw new Error();
+            setHasGoogleApiKey(false);
+            setGoogleApiKeyPreview('');
+            setGoogleApiKey('');
+            toast.success('Google API key removed');
+        } catch {
+            toast.error('Failed to remove Google API key');
+        } finally {
+            setIsSavingGoogleKey(false);
         }
     };
 
@@ -250,6 +303,49 @@ export default function SettingsPage() {
                             </div>
                             <p className="text-[11px] text-muted-foreground">
                                 Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer" className="underline hover:text-foreground">platform.openai.com/api-keys</a>
+                            </p>
+                        </div>
+
+                        <Separator />
+
+                        {/* Google API Key */}
+                        <div className="grid gap-2">
+                            <Label>Google API Key</Label>
+                            <p className="text-[11px] text-muted-foreground mb-1">
+                                Required for Google Sheets integration (fetching tabs &amp; reading/writing data).
+                            </p>
+                            {hasGoogleApiKey && (
+                                <div className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                                    <span className="text-sm font-mono text-muted-foreground">{googleApiKeyPreview}</span>
+                                    <Button variant="ghost" size="sm" className="ml-auto text-red-500 h-7" onClick={handleRemoveGoogleKey} disabled={isSavingGoogleKey}>
+                                        <Trash2 className="h-3 w-3 mr-1" /> Remove
+                                    </Button>
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Input
+                                        type={showGoogleKey ? 'text' : 'password'}
+                                        placeholder={hasGoogleApiKey ? 'Enter new key to replace...' : 'AIza...'}
+                                        value={googleApiKey}
+                                        onChange={(e) => setGoogleApiKey(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setShowGoogleKey(!showGoogleKey)}
+                                    >
+                                        {showGoogleKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                                <Button onClick={handleSaveGoogleKey} disabled={isSavingGoogleKey || !googleApiKey.trim()} size="sm">
+                                    {isSavingGoogleKey && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Save Key
+                                </Button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                                Get your API key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Google Cloud Console</a>. Enable the <strong>Google Sheets API</strong>.
                             </p>
                         </div>
 

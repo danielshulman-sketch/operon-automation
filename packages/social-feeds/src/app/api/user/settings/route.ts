@@ -10,7 +10,7 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { name: true, email: true, openaiApiKey: true, linkedinClientId: true, linkedinClientSecret: true },
+        select: { name: true, email: true, openaiApiKey: true, googleApiKey: true, linkedinClientId: true, linkedinClientSecret: true },
     });
 
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -21,6 +21,10 @@ export async function GET() {
         hasOpenaiKey: !!user.openaiApiKey,
         openaiKeyPreview: user.openaiApiKey
             ? `sk-...${user.openaiApiKey.slice(-4)}`
+            : null,
+        hasGoogleApiKey: !!user.googleApiKey,
+        googleApiKeyPreview: user.googleApiKey
+            ? `...${user.googleApiKey.slice(-4)}`
             : null,
         hasLinkedinCredentials: !!(user.linkedinClientId && user.linkedinClientSecret),
         linkedinClientId: user.linkedinClientId || '',
@@ -37,6 +41,7 @@ export async function PUT(req: Request) {
 
     if (body.name !== undefined) updateData.name = body.name;
     if (body.openaiApiKey !== undefined) updateData.openaiApiKey = body.openaiApiKey;
+    if (body.googleApiKey !== undefined) updateData.googleApiKey = body.googleApiKey;
     if (body.linkedinClientId !== undefined) updateData.linkedinClientId = body.linkedinClientId;
     if (body.linkedinClientSecret !== undefined) updateData.linkedinClientSecret = body.linkedinClientSecret;
 

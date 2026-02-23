@@ -1,7 +1,7 @@
 {
-    "buildCommand": "pnpm install && pnpm build",
-    "outputDirectory": ".next",
+    "buildCommand": "cd packages/social-feeds && pnpm install && pnpm build",
+    "outputDirectory": "packages/social-feeds/.next",
     "installCommand": "pnpm install",
     "framework": "nextjs",
-    "devCommand": "pnpm dev"
+    "devCommand": "cd packages/social-feeds && pnpm dev"
 }

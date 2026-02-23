@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useWorkflowStore } from '@/lib/store';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
@@ -45,6 +45,110 @@ export const NodeConfigPanel = () => {
     const selectedNode = nodes.find(n => n.id === storedSelectedNode?.id);
 
     if (!selectedNode) return null;
+
+    const findPreviousNode = () => {
+        const incomingEdge = edges.find(e => e.target === selectedNode.id);
+        if (!incomingEdge) return null;
+        return nodes.find(n => n.id === incomingEdge.source) || null;
+    };
+
+    const applyGoogleSheetDetailsFromPreviousNode = (mode: 'source' | 'publisher') => {
+        const previousNode = findPreviousNode();
+        if (!previousNode) {
+            toast.error('No previous node connected.');
+            return;
+        }
+
+        const sourceData = (previousNode.data || {}) as Record<string, any>;
+        const inferredSheetId = (sourceData.sheetId as string) || '';
+        const inferredSheetTab = (sourceData.sheetTab as string) || (sourceData.sheetName as string) || '';
+        const inferredContentCol = (sourceData.sheetColumn as string) || (sourceData.contentColumn as string) || '';
+        const inferredImageCol = (sourceData.imageColumn as string) || '';
+
+        if (!inferredSheetId && !inferredSheetTab && !inferredContentCol && !inferredImageCol) {
+            toast.error('Previous node has no Google Sheets details to copy.');
+            return;
+        }
+
+        setNodes(nodes.map(n => {
+            if (n.id !== selectedNode.id) return n;
+            if (mode === 'publisher') {
+                return {
+                    ...n,
+                    data: {
+                        ...n.data,
+                        ...(inferredSheetId ? { sheetId: inferredSheetId } : {}),
+                        ...(inferredSheetTab ? { sheetTab: inferredSheetTab } : {}),
+                        ...(inferredContentCol ? { contentColumn: inferredContentCol } : {}),
+                        ...(inferredImageCol ? { imageColumn: inferredImageCol } : {}),
+                    },
+                };
+            }
+            return {
+                ...n,
+                data: {
+                    ...n.data,
+                    ...(inferredSheetId ? { sheetId: inferredSheetId } : {}),
+                    ...(inferredSheetTab ? { sheetTab: inferredSheetTab } : {}),
+                    ...(inferredContentCol ? { sheetColumn: inferredContentCol } : {}),
+                },
+            };
+        }));
+
+        toast.success('Google Sheets details copied from previous node.');
+    };
+
+    useEffect(() => {
+        const previousNode = findPreviousNode();
+        if (!previousNode) return;
+
+        const sourceData = (previousNode.data || {}) as Record<string, any>;
+        const inferredSheetId = (sourceData.sheetId as string) || '';
+        const inferredSheetTab = (sourceData.sheetTab as string) || (sourceData.sheetName as string) || '';
+        const inferredContentCol = (sourceData.sheetColumn as string) || (sourceData.contentColumn as string) || '';
+        const inferredImageCol = (sourceData.imageColumn as string) || '';
+
+        const isSourceGoogleSheets =
+            (selectedNode.type === 'ai-generation' || selectedNode.type === 'blog-creation') &&
+            (selectedNode.data.contentSource as string) === 'google-sheets';
+        const isPublisherGoogleSheets = selectedNode.type === 'google-sheets-publisher';
+
+        if (!isSourceGoogleSheets && !isPublisherGoogleSheets) return;
+
+        if (isSourceGoogleSheets) {
+            const hasAny = !!(selectedNode.data.sheetId || selectedNode.data.sheetTab || selectedNode.data.sheetColumn);
+            if (hasAny) return;
+            if (!inferredSheetId && !inferredSheetTab && !inferredContentCol) return;
+            setNodes(nodes.map(n => n.id === selectedNode.id
+                ? {
+                    ...n,
+                    data: {
+                        ...n.data,
+                        ...(inferredSheetId ? { sheetId: inferredSheetId } : {}),
+                        ...(inferredSheetTab ? { sheetTab: inferredSheetTab } : {}),
+                        ...(inferredContentCol ? { sheetColumn: inferredContentCol } : {}),
+                    },
+                }
+                : n));
+            return;
+        }
+
+        const hasAnyPublisher = !!(selectedNode.data.sheetId || selectedNode.data.sheetTab || selectedNode.data.contentColumn || selectedNode.data.imageColumn);
+        if (hasAnyPublisher) return;
+        if (!inferredSheetId && !inferredSheetTab && !inferredContentCol && !inferredImageCol) return;
+        setNodes(nodes.map(n => n.id === selectedNode.id
+            ? {
+                ...n,
+                data: {
+                    ...n.data,
+                    ...(inferredSheetId ? { sheetId: inferredSheetId } : {}),
+                    ...(inferredSheetTab ? { sheetTab: inferredSheetTab } : {}),
+                    ...(inferredContentCol ? { contentColumn: inferredContentCol } : {}),
+                    ...(inferredImageCol ? { imageColumn: inferredImageCol } : {}),
+                },
+            }
+            : n));
+    }, [selectedNode.id, selectedNode.type, selectedNode.data.contentSource, selectedNode.data.sheetId, selectedNode.data.sheetTab, selectedNode.data.sheetColumn, selectedNode.data.contentColumn, selectedNode.data.imageColumn, edges, nodes, setNodes]);
 
     const handleTestExecution = async () => {
         setTestLoading(true);
@@ -212,50 +316,59 @@ export const NodeConfigPanel = () => {
                                 onChange={(e) => {
                                     setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
                                 }}
+                                onBlur={() => {
+                                    // Auto-fetch sheets when user leaves the URL field
+                                    let id = selectedNode.data.sheetId as string || '';
+                                    const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                                    if (match) id = match[1];
+                                    if (id) fetchSheets(id);
+                                }}
                             />
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full"
+                                disabled={isFetchingSheets || !(selectedNode.data.sheetId as string)}
+                                onClick={() => {
+                                    let id = selectedNode.data.sheetId as string || '';
+                                    const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                                    if (match) id = match[1];
+                                    fetchSheets(id);
+                                }}
+                            >
+                                {isFetchingSheets ? 'Fetching...' : 'Fetch Sheets'}
+                            </Button>
                         </div>
                         <div className="grid gap-2">
                             <Label>Worksheet Name</Label>
-                            <div className="flex gap-2">
-                                {availableSheets.length > 0 ? (
-                                    <Select
-                                        value={(selectedNode.data.sheetName as string) || ''}
-                                        onValueChange={(val) => {
-                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: val } } : n));
-                                        }}
-                                    >
-                                        <SelectTrigger><SelectValue placeholder="Select Tab" /></SelectTrigger>
-                                        <SelectContent>
-                                            {availableSheets.map(sheet => (
-                                                <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <Input
-                                        placeholder="Sheet1"
-                                        value={(selectedNode.data.sheetName as string) || ''}
-                                        onChange={(e) => {
-                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: e.target.value } } : n));
-                                        }}
-                                    />
-                                )}
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="shrink-0"
-                                    disabled={isFetchingSheets}
-                                    onClick={() => {
-                                        // Extract ID from URL if full URL is pasted
-                                        let id = selectedNode.data.sheetId as string || '';
-                                        const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
-                                        if (match) id = match[1];
-                                        fetchSheets(id);
+                            {availableSheets.length > 0 ? (
+                                <Select
+                                    value={(selectedNode.data.sheetName as string) || ''}
+                                    onValueChange={(val) => {
+                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: val } } : n));
                                     }}
                                 >
-                                    <Plus className={`h-4 w-4 ${isFetchingSheets ? 'animate-spin' : ''}`} />
-                                </Button>
-                            </div>
+                                    <SelectTrigger><SelectValue placeholder="Select a sheet tab..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {availableSheets.map(sheet => (
+                                            <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    placeholder="Sheet1"
+                                    value={(selectedNode.data.sheetName as string) || ''}
+                                    onChange={(e) => {
+                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: e.target.value } } : n));
+                                    }}
+                                />
+                            )}
+                            {availableSheets.length === 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                    Enter a Spreadsheet URL above and click &quot;Fetch Sheets&quot; to load available tabs.
+                                </p>
+                            )}
                         </div>
                         <Separator />
                         <h4 className="font-medium text-sm">Column Mapping</h4>
@@ -372,6 +485,14 @@ export const NodeConfigPanel = () => {
 
                             {(selectedNode.data.contentSource === 'google-sheets') && (
                                 <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="w-full h-8 text-xs"
+                                        onClick={() => applyGoogleSheetDetailsFromPreviousNode('source')}
+                                    >
+                                        Use Previous Node Sheet Details
+                                    </Button>
                                     <div className="grid gap-1">
                                         <Label className="text-xs">Spreadsheet ID</Label>
                                         <Input
@@ -522,6 +643,14 @@ export const NodeConfigPanel = () => {
 
                             {(selectedNode.data.contentSource === 'google-sheets') && (
                                 <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="w-full h-8 text-xs"
+                                        onClick={() => applyGoogleSheetDetailsFromPreviousNode('source')}
+                                    >
+                                        Use Previous Node Sheet Details
+                                    </Button>
                                     <div className="grid gap-1">
                                         <Label className="text-xs">Spreadsheet ID</Label>
                                         <Input
@@ -672,7 +801,15 @@ export const NodeConfigPanel = () => {
                 if (selectedNode.type === 'google-sheets-publisher') {
                     return (
                         <div className="space-y-4">
-                            <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                        <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="w-full h-8 text-xs"
+                                    onClick={() => applyGoogleSheetDetailsFromPreviousNode('publisher')}
+                                >
+                                    Use Previous Node Sheet Details
+                                </Button>
                                 <div className="grid gap-1">
                                     <Label className="text-xs">Spreadsheet ID</Label>
                                     <Input

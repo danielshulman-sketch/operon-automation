@@ -1,6 +1,7 @@
 {
   "name": "business-app-monorepo",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.25.0",
   "private": true,
   "workspaces": [
     "packages/*"

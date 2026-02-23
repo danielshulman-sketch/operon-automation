@@ -209,6 +209,100 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         break;
                     }
 
+                    case 'google-sheets-source': {
+                        const sheetId = (node.data?.sheetId as string) || '';
+                        const sheetName = (node.data?.sheetName as string) || 'Sheet1';
+                        console.log('[SHEETS-SOURCE] Starting. sheetId:', sheetId, 'sheetName:', sheetName);
+                        console.log('[SHEETS-SOURCE] Full node.data:', JSON.stringify(node.data));
+
+                        if (!sheetId) throw new Error('Spreadsheet ID is required for Google Sheets source.');
+
+                        // Extract spreadsheet ID from URL if needed
+                        const spreadsheetId = normalizeSpreadsheetId(sheetId);
+                        console.log('[SHEETS-SOURCE] Extracted spreadsheetId:', spreadsheetId);
+
+                        const userWithKey = await prisma.user.findUnique({
+                            where: { id: session.user.id },
+                            select: { googleApiKey: true }
+                        });
+                        console.log('[SHEETS-SOURCE] Has API key:', !!userWithKey?.googleApiKey);
+
+                        if (!userWithKey?.googleApiKey) {
+                            throw new Error('Google API Key not found. Please configure it in Settings.');
+                        }
+
+                        // Read content and adjacent status column to find first unprocessed row
+                        const contentCol = ((node.data?.sheetColumn as string) || 'A').toUpperCase();
+                        const statusColCharCode = contentCol.charCodeAt(0) + 1;
+                        const statusCol = String.fromCharCode(statusColCharCode > 90 ? 90 : statusColCharCode);
+
+                        const range = `${sheetName}!${contentCol}1:${statusCol}1000`;
+                        const fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${userWithKey.googleApiKey}`;
+                        console.log('[SHEETS-SOURCE] Fetching range:', range);
+                        const sheetsRes = await fetch(fetchUrl);
+                        console.log('[SHEETS-SOURCE] Sheets API response status:', sheetsRes.status);
+
+                        if (!sheetsRes.ok) {
+                            const errData = await sheetsRes.json().catch(() => ({}));
+                            console.error('[SHEETS-SOURCE] API error:', JSON.stringify(errData));
+                            throw new Error(`Failed to fetch sheet: ${errData.error?.message || sheetsRes.statusText}`);
+                        }
+
+                        const sheetData = await sheetsRes.json();
+                        const rows: string[][] = sheetData.values || [];
+                        const startRow = parseStartRowFromRange(sheetData.range);
+                        console.log('[SHEETS-SOURCE] Total rows fetched:', rows.length);
+                        console.log('[SHEETS-SOURCE] First 5 rows:', JSON.stringify(rows.slice(0, 5)));
+
+                        // Find first row (skip header row 0) where status column is not 'done'
+                        let usedRowIndex = -1;
+                        for (let i = 1; i < rows.length; i++) {
+                            const cellA = (rows[i]?.[0] || '').trim(); // Content Col
+                            const cellB = (rows[i]?.[1] || '').trim().toLowerCase(); // Status Col
+                            if (cellA && cellB !== 'done') {
+                                output = cellA;
+                                usedRowIndex = i;
+                                console.log('[SHEETS-SOURCE] Using row', i, '- content:', cellA.substring(0, 100));
+                                break;
+                            }
+                        }
+
+                        if (usedRowIndex === -1) {
+                            output = 'All rows in the sheet have been processed (marked as done).';
+                            console.log('[SHEETS-SOURCE] All rows done');
+                        } else {
+                            // Mark status column as 'done' for the used row
+                            const actualRow = startRow + usedRowIndex;
+                            const markRange = `${sheetName}!${statusCol}${actualRow}`;
+                            console.log('[SHEETS-SOURCE] Marking row', actualRow, 'as done in range:', markRange);
+                            const writeToken = await getGoogleWriteAccessToken();
+                            console.log('[SHEETS-SOURCE] Has OAuth token:', !!writeToken);
+                            const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                            let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
+                            if (writeToken) {
+                                writeHeaders['Authorization'] = `Bearer ${writeToken}`;
+                            } else {
+                                writeUrl += `&key=${userWithKey.googleApiKey}`;
+                            }
+                            try {
+                                const markRes = await fetch(writeUrl, {
+                                    method: 'PUT',
+                                    headers: writeHeaders,
+                                    body: JSON.stringify({ values: [['done']] }),
+                                });
+                                const markText = await markRes.text();
+                                console.log('[SHEETS-SOURCE] Mark-done response:', markRes.status, markText);
+                                if (!markRes.ok) {
+                                    throw new Error(`Failed to mark row ${actualRow} as done: ${markText || markRes.statusText}`);
+                                }
+                            } catch (markErr) {
+                                throw new Error(`Failed to mark row as done: ${markErr}`);
+                            }
+                        }
+                        console.log('[SHEETS-SOURCE] Final output:', output.substring(0, 200));
+                        break;
+                    }
+
                     case 'ai-generation': {
                         if (!user?.openaiApiKey) {
                             throw new Error('No OpenAI API key configured. Go to Settings → API Keys.');
@@ -287,7 +381,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         const downstreamIds = edgesBySource.get(node.id) || [];
                         const platforms: string[] = [];
                         for (const tid of downstreamIds) {
-                            const tNode = nodeMap.get(tid);
+                            const tNode = nodeMap.get(tid) as any;
                             if (tNode?.type?.includes('publisher')) {
                                 const p = (tNode.type as string).replace('-publisher', '');
                                 platforms.push(p.charAt(0).toUpperCase() + p.slice(1));
@@ -295,7 +389,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                             // Also check nodes downstream of that node
                             const grandChildren = edgesBySource.get(tid) || [];
                             for (const gcid of grandChildren) {
-                                const gcNode = nodeMap.get(gcid);
+                                const gcNode = nodeMap.get(gcid) as any;
                                 if (gcNode?.type?.includes('publisher')) {
                                     const p = (gcNode.type as string).replace('-publisher', '');
                                     platforms.push(p.charAt(0).toUpperCase() + p.slice(1));
@@ -1146,5 +1240,42 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
     } catch (error: any) {
         console.error("Workflow execution error:", error);
         return NextResponse.json({ error: error.message || "Execution failed" }, { status: 500 });
+    }
+}
+
+// Helper: Extract Spreadsheet ID from URL
+function normalizeSpreadsheetId(sheetId: string) {
+    if (sheetId.includes('/d/')) {
+        const parts = sheetId.split('/d/');
+        if (parts.length > 1) {
+            return parts[1].split('/')[0];
+        }
+    }
+    return sheetId;
+}
+
+// Helper: Get row number from range string to know exactly which row we are editing
+function parseStartRowFromRange(rangeOpt: string | undefined): number {
+    if (!rangeOpt) return 1;
+    // range could be "Sheet1!A1:B10" or just "A1:B10" or "Sheet1"
+    const parts = rangeOpt.split('!');
+    const rangeStr = parts[parts.length - 1]; // "A1:B10"
+    const firstCell = rangeStr.split(':')[0]; // "A1"
+    const rowMatch = firstCell.match(/\d+/);
+    if (rowMatch && rowMatch[0]) {
+        return parseInt(rowMatch[0], 10);
+    }
+    return 1;
+}
+
+// Helper: Returns a valid OAuth 2.0 token if possible, else null. (Placeholder implementation for now)
+async function getGoogleWriteAccessToken(): Promise<string | null> {
+    try {
+        // Typically we would fetch the user's Google connection from the DB and verify OAuth tokens, 
+        // refreshing if needed to get an access_token. We'll leave this functional but empty for this scoped fix, 
+        // leaning on their API key mostly per the old implementation.
+        return null;
+    } catch {
+        return null;
     }
 }
