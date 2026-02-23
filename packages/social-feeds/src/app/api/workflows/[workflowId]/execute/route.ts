@@ -335,23 +335,58 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                 }
                             }
                         } else if (contentSource === 'google-sheets') {
-                            const sheetId = (node.data?.sheetId as string) || ''; // Should fall back to global if empty, but here we assume passed by NodeConfig
+                            const sheetId = normalizeSpreadsheetId((node.data?.sheetId as string) || '');
                             const tab = (node.data?.sheetTab as string) || 'Sheet1';
-                            const col = (node.data?.sheetColumn as string) || 'A';
+                            const contentCol = ((node.data?.sheetColumn as string) || 'A').toUpperCase();
+                            const statusColCharCode = contentCol.charCodeAt(0) + 1;
+                            const statusCol = String.fromCharCode(statusColCharCode > 90 ? 90 : statusColCharCode);
 
-                            // Try to use Google Sheets API if API key exists
                             const userWithKey = await prisma.user.findUnique({ where: { id: session.user.id }, select: { googleApiKey: true } });
 
                             if (userWithKey?.googleApiKey && sheetId) {
                                 try {
-                                    const range = `${tab}!${col}1:${col}10`; // Fetch first 10 rows? Or just the last one? Let's fetch top 5.
+                                    const range = `${tab}!${contentCol}1:${statusCol}1000`;
                                     const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
                                     if (sheetsRes.ok) {
                                         const sheetData = await sheetsRes.json();
-                                        const rows = sheetData.values || [];
-                                        // Use the last non-empty row? Or all of them? Let's use the first non-header row (row 2) or just all text.
-                                        // For simplicity, let's join them.
-                                        inputContent = rows.flat().filter(Boolean).join('\n');
+                                        const rows: string[][] = sheetData.values || [];
+                                        const startRow = parseStartRowFromRange(sheetData.range);
+
+                                        let usedRowIndex = -1;
+                                        for (let i = 1; i < rows.length; i++) {
+                                            const cellA = (rows[i]?.[0] || '').trim(); // Content Col
+                                            const cellB = (rows[i]?.[1] || '').trim().toLowerCase(); // Status Col
+                                            if (cellA && cellB !== 'done') {
+                                                inputContent = cellA;
+                                                usedRowIndex = i;
+                                                break;
+                                            }
+                                        }
+
+                                        if (usedRowIndex === -1) {
+                                            inputContent = 'All rows in the sheet have been processed (marked as done).';
+                                        } else {
+                                            const actualRow = startRow + usedRowIndex;
+                                            const markRange = `${tab}!${statusCol}${actualRow}`;
+                                            const writeToken = await getGoogleWriteAccessToken();
+                                            const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                                            let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
+                                            if (writeToken) {
+                                                writeHeaders['Authorization'] = `Bearer ${writeToken}`;
+                                            } else {
+                                                writeUrl += `&key=${userWithKey.googleApiKey}`;
+                                            }
+                                            try {
+                                                const markRes = await fetch(writeUrl, {
+                                                    method: 'PUT',
+                                                    headers: writeHeaders,
+                                                    body: JSON.stringify({ values: [['done']] }),
+                                                });
+                                                if (!markRes.ok) throw new Error(`Failed to mark row as done`);
+                                            } catch (markErr) {
+                                                console.error('[AI-GEN] Failed to mark row as done', markErr);
+                                            }
+                                        }
                                     } else {
                                         inputContent = `Error fetching Sheet: ${sheetsRes.statusText}`;
                                     }
@@ -465,20 +500,60 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                 }
                             }
                         } else if (contentSource === 'google-sheets') {
-                            const sheetId = (node.data?.sheetId as string) || '';
+                            const sheetId = normalizeSpreadsheetId((node.data?.sheetId as string) || '');
                             const tab = (node.data?.sheetTab as string) || 'Sheet1';
-                            const col = (node.data?.sheetColumn as string) || 'A';
+                            const contentCol = ((node.data?.sheetColumn as string) || 'A').toUpperCase();
+                            const statusColCharCode = contentCol.charCodeAt(0) + 1;
+                            const statusCol = String.fromCharCode(statusColCharCode > 90 ? 90 : statusColCharCode);
 
                             const userWithKey = await prisma.user.findUnique({ where: { id: session.user.id }, select: { googleApiKey: true } });
 
                             if (userWithKey?.googleApiKey && sheetId) {
                                 try {
-                                    const range = `${tab}!${col}1:${col}10`;
+                                    const range = `${tab}!${contentCol}1:${statusCol}1000`;
                                     const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
                                     if (sheetsRes.ok) {
                                         const sheetData = await sheetsRes.json();
-                                        const rows = sheetData.values || [];
-                                        sourceText = rows.flat().filter(Boolean).join('\n');
+                                        const rows: string[][] = sheetData.values || [];
+                                        const startRow = parseStartRowFromRange(sheetData.range);
+
+                                        let usedRowIndex = -1;
+                                        for (let i = 1; i < rows.length; i++) {
+                                            const cellA = (rows[i]?.[0] || '').trim(); // Content Col
+                                            const cellB = (rows[i]?.[1] || '').trim().toLowerCase(); // Status Col
+                                            if (cellA && cellB !== 'done') {
+                                                sourceText = cellA;
+                                                usedRowIndex = i;
+                                                break;
+                                            }
+                                        }
+
+                                        if (usedRowIndex === -1) {
+                                            sourceText = 'All rows in the sheet have been processed (marked as done).';
+                                        } else {
+                                            const actualRow = startRow + usedRowIndex;
+                                            const markRange = `${tab}!${statusCol}${actualRow}`;
+                                            const writeToken = await getGoogleWriteAccessToken();
+                                            const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                                            let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
+                                            if (writeToken) {
+                                                writeHeaders['Authorization'] = `Bearer ${writeToken}`;
+                                            } else {
+                                                writeUrl += `&key=${userWithKey.googleApiKey}`;
+                                            }
+                                            try {
+                                                const markRes = await fetch(writeUrl, {
+                                                    method: 'PUT',
+                                                    headers: writeHeaders,
+                                                    body: JSON.stringify({ values: [['done']] }),
+                                                });
+                                                if (!markRes.ok) throw new Error(`Failed to mark row as done`);
+                                            } catch (markErr) {
+                                                console.error('[BLOG-CREATION] Failed to mark row as done', markErr);
+                                            }
+                                        }
+                                    } else {
+                                        sourceText = `Error fetching Sheet: ${sheetsRes.statusText}`;
                                     }
                                 } catch (e) {
                                     sourceText = `Error fetching Sheet: ${e}`;
