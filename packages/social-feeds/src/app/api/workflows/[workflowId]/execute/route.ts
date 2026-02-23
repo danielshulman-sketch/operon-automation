@@ -212,12 +212,12 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                     case 'google-sheets-source': {
                         const sheetId = (node.data?.sheetId as string) || '';
                         const sheetName = (node.data?.sheetName as string) || 'Sheet1';
+
                         console.log('[SHEETS-SOURCE] Starting. sheetId:', sheetId, 'sheetName:', sheetName);
                         console.log('[SHEETS-SOURCE] Full node.data:', JSON.stringify(node.data));
 
                         if (!sheetId) throw new Error('Spreadsheet ID is required for Google Sheets source.');
 
-                        // Extract spreadsheet ID from URL if needed
                         const spreadsheetId = normalizeSpreadsheetId(sheetId);
                         console.log('[SHEETS-SOURCE] Extracted spreadsheetId:', spreadsheetId);
 

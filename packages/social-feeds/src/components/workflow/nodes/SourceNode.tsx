@@ -23,7 +23,10 @@ const SourceNode = ({ id, data, selected }: NodeProps) => {
                     {isSheets ? 'Google Sheet' : 'News URL'}
                 </span>
                 <div className="text-[10px] truncate max-w-[110px] opacity-75">
-                    {data.url ? (data.url as string) : 'No source configured'}
+                    {isSheets
+                        ? (data.sheetName as string || data.sheetId as string || 'No source configured')
+                        : (data.url as string || 'No source configured')
+                    }
                 </div>
             </div>
         </BaseNode>
