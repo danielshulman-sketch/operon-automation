@@ -86,6 +86,48 @@ export default function ConnectionsPage() {
                 } else {
                     setFacebookPages(data.data);
                     toast.success(`Found ${data.data.length} pages`);
+
+                    // If Instagram platform selected, auto-fetch linked IG accounts
+                    if (newAccountPlatform === 'instagram') {
+                        for (const page of data.data) {
+                            try {
+                                const igRes = await fetch(
+                                    `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${page.access_token}`
+                                );
+                                const igData = await igRes.json();
+                                if (igData.instagram_business_account) {
+                                    const ig = igData.instagram_business_account;
+                                    const connRes = await fetch('/api/connections', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            platform: 'instagram',
+                                            name: ig.username || ig.name || `Instagram (${page.name})`,
+                                            accessToken: page.access_token,
+                                            username: ig.id
+                                        })
+                                    });
+                                    if (connRes.ok) {
+                                        const newConn = await connRes.json();
+                                        store.addAccount({
+                                            id: newConn.id,
+                                            platform: 'instagram' as any,
+                                            name: ig.username || ig.name || `Instagram (${page.name})`,
+                                            status: 'active',
+                                            username: ig.id,
+                                            accessToken: page.access_token
+                                        });
+                                        toast.success(`Connected Instagram: ${ig.username || ig.name}`);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error(`Error fetching IG for page ${page.id}:`, e);
+                            }
+                        }
+                        setFacebookPages([]);
+                        setNewAccountToken('');
+                        setIsAddAccountOpen(false);
+                    }
                 }
             } else {
                 console.warn("Unexpected Facebook response:", data);
@@ -243,7 +285,7 @@ export default function ConnectionsPage() {
                                     <div className="grid gap-2">
                                         <Label>Access Token</Label>
 
-                                        {newAccountPlatform === 'facebook' ? (
+                                        {(newAccountPlatform === 'facebook' || newAccountPlatform === 'instagram') ? (
                                             <div className="flex flex-col gap-3">
                                                 <Button
                                                     onClick={handleFacebookLogin}
@@ -329,7 +371,7 @@ export default function ConnectionsPage() {
                                     )}
                                 </div>
                                 <DialogFooter>
-                                    {newAccountPlatform !== 'facebook' && (
+                                    {newAccountPlatform !== 'facebook' && newAccountPlatform !== 'instagram' && (
                                         <Button onClick={handleAddAccount}>Connect Account</Button>
                                     )}
                                 </DialogFooter>
@@ -389,6 +431,18 @@ export default function ConnectionsPage() {
                             <CardDescription>Connect a spreadsheet to use as a data source.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            <div className="rounded-md border p-3 flex items-center justify-between gap-3">
+                                <div className="text-sm text-muted-foreground">
+                                    Connect Google OAuth to enable marking rows as <strong>done</strong> after use.
+                                </div>
+                                <Button
+                                    variant="default"
+                                    onClick={() => { window.location.href = '/api/auth/google'; }}
+                                >
+                                    Connect Google Sheets
+                                </Button>
+                            </div>
+
                             <div className="grid gap-2">
                                 <Label>Spreadsheet ID / URL</Label>
                                 <Input

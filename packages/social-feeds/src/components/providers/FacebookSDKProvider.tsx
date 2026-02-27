@@ -42,17 +42,28 @@ export function FacebookSDKProvider({ children }: { children: React.ReactNode })
         // Load SDK asynchronously
         const loadSdk = () => {
             if (document.getElementById('facebook-jssdk')) return;
+            const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+            if (!appId) {
+                // Facebook is optional; don't initialize SDK when app id is missing.
+                setIsLoaded(false);
+                return;
+            }
 
             /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
             (window as any).fbAsyncInit = function () {
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                (window as any).FB.init({
-                    appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '', // We will need to set this!
-                    cookie: true,
-                    xfbml: true,
-                    version: 'v19.0'
-                });
-                setIsLoaded(true);
+                try {
+                    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                    (window as any).FB.init({
+                        appId,
+                        cookie: true,
+                        xfbml: true,
+                        version: 'v19.0'
+                    });
+                    setIsLoaded(true);
+                } catch (e) {
+                    console.error("Facebook SDK init failed:", e);
+                    setIsLoaded(false);
+                }
             };
 
             const fjs = document.getElementsByTagName('script')[0];
@@ -60,6 +71,10 @@ export function FacebookSDKProvider({ children }: { children: React.ReactNode })
                 const js = document.createElement('script');
                 js.id = 'facebook-jssdk';
                 js.src = "https://connect.facebook.net/en_US/sdk.js";
+                js.onerror = () => {
+                    console.error("Failed to load Facebook SDK script.");
+                    setIsLoaded(false);
+                };
                 fjs.parentNode.insertBefore(js, fjs);
             }
         };
@@ -82,7 +97,7 @@ export function FacebookSDKProvider({ children }: { children: React.ReactNode })
                     reject(new Error("User cancelled login or did not fully authorize."));
                 }
             }, {
-                scope: 'public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata'
+                scope: 'public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_metadata,instagram_basic,instagram_content_publish'
             });
         });
     };
