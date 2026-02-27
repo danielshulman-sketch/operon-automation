@@ -51,6 +51,21 @@ export async function POST(req: Request) {
             return new NextResponse("Missing fields", { status: 400 });
         }
 
+        // --- STRICT INSTAGRAM TOKEN VALIDATION ---
+        // Prevent users from manually pasting their IG Business Account ID instead of a Page Access Token
+        if (platform === 'instagram') {
+            if (typeof accessToken !== 'string' || accessToken.length < 50 || /^\d+$/.test(accessToken)) {
+                console.log("Rejected invalid Instagram token format:", accessToken.substring(0, 20));
+                return new NextResponse(
+                    JSON.stringify({
+                        error: "Invalid token format. Do not paste your Instagram User ID here. " +
+                            "Please close this and use the 'Connect with Facebook' button to get a proper Page Access Token."
+                    }),
+                    { status: 400, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+        }
+
         console.log("Creating connection in DB...");
         const connection = await prisma.externalConnection.create({
             data: {

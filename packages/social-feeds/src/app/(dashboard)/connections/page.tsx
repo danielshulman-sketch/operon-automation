@@ -299,27 +299,31 @@ export default function ConnectionsPage() {
                                                     Opens a popup to authorize this app.
                                                 </p>
 
-                                                {/* Fallback for manual token if needed */}
-                                                <div className="relative">
-                                                    <div className="absolute inset-0 flex items-center">
-                                                        <span className="w-full border-t" />
-                                                    </div>
-                                                    <div className="relative flex justify-center text-xs uppercase">
-                                                        <span className="bg-background px-2 text-muted-foreground">Or paste token</span>
-                                                    </div>
-                                                </div>
+                                                {/* Fallback for manual token if needed - only for Facebook, NOT Instagram */}
+                                                {newAccountPlatform === 'facebook' && (
+                                                    <>
+                                                        <div className="relative mt-2">
+                                                            <div className="absolute inset-0 flex items-center">
+                                                                <span className="w-full border-t" />
+                                                            </div>
+                                                            <div className="relative flex justify-center text-xs uppercase">
+                                                                <span className="bg-background px-2 text-muted-foreground">Or paste token</span>
+                                                            </div>
+                                                        </div>
 
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        type="password"
-                                                        placeholder="Paste User Access Token..."
-                                                        value={newAccountToken}
-                                                        onChange={(e) => setNewAccountToken(e.target.value)}
-                                                    />
-                                                    <Button onClick={() => fetchFacebookPages()} disabled={!newAccountToken || isFetchingPages} size="sm" variant="secondary">
-                                                        Fetch
-                                                    </Button>
-                                                </div>
+                                                        <div className="flex gap-2 mt-2">
+                                                            <Input
+                                                                type="password"
+                                                                placeholder="Paste User Access Token..."
+                                                                value={newAccountToken}
+                                                                onChange={(e) => setNewAccountToken(e.target.value)}
+                                                            />
+                                                            <Button onClick={() => fetchFacebookPages()} disabled={!newAccountToken || isFetchingPages} size="sm" variant="secondary">
+                                                                Fetch
+                                                            </Button>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         ) : newAccountPlatform === 'linkedin' ? (
                                             <div className="flex flex-col gap-3">
