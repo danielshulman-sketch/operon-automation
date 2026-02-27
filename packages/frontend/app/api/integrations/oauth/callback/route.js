@@ -124,9 +124,28 @@ export async function GET(request) {
         const tokenData = await tokenResponse.json();
 
         if (tokenData.error) {
-            console.error('Token exchange error:', tokenData);
-            return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/automations/integrations?error=token_exchange_failed`);
+            const errorMsg = typeof tokenData.error === 'object'
+                ? (tokenData.error.message || JSON.stringify(tokenData.error))
+                : tokenData.error;
+            console.error('Token exchange error:', integrationName, tokenData);
+            return NextResponse.redirect(
+                `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/automations/integrations?error=${encodeURIComponent(errorMsg)}`
+            );
         }
+
+        if (!tokenData.access_token) {
+            console.error('Token exchange returned no access_token:', integrationName, tokenData);
+            return NextResponse.redirect(
+                `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/automations/integrations?error=${encodeURIComponent('Token exchange failed: no access token received')}`
+            );
+        }
+
+        console.log(`OAuth token exchange success for ${integrationName}:`, {
+            hasAccessToken: !!tokenData.access_token,
+            tokenLength: tokenData.access_token?.length,
+            hasRefreshToken: !!tokenData.refresh_token,
+            expiresIn: tokenData.expires_in
+        });
 
         // 3. Encrypt & Store Credentials
         const credentials = {
@@ -148,6 +167,7 @@ export async function GET(request) {
         );
 
         return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/automations/integrations?success=true`);
+
 
     } catch (error) {
         console.error('OAuth callback error:', error);

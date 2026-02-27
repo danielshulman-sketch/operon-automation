@@ -14,6 +14,7 @@ import { emailIntegration } from '../integrations/email';
 import { kartraIntegration } from '../integrations/kartra';
 import { mailerliteIntegration } from '../integrations/mailerlite';
 import { mailchimpIntegration } from '../integrations/mailchimp';
+import { facebookPageIntegration } from '../integrations/facebook';
 
 const INTEGRATIONS = {
     slack: slackIntegration,
@@ -24,7 +25,8 @@ const INTEGRATIONS = {
     email: emailIntegration,
     kartra: kartraIntegration,
     mailerlite: mailerliteIntegration,
-    mailchimp: mailchimpIntegration
+    mailchimp: mailchimpIntegration,
+    facebook_page: facebookPageIntegration
 };
 
 /**

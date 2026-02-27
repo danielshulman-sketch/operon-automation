@@ -349,6 +349,35 @@ export const INTEGRATIONS = {
                 { name: 'tagName', label: 'Tag Name', type: 'text', required: true }
             ]
         }
+    },
+
+    facebook_page: {
+        name: 'Facebook Page',
+        description: 'Publish posts and manage your Facebook Pages',
+        icon: 'f',
+        authType: 'oauth2',
+        color: '#1877F2',
+        actions: ['publish_post', 'get_page_info', 'get_posts'],
+        helpUrl: 'https://developers.facebook.com/docs/pages-api',
+        setupInstructions: '1. Go to https://developers.facebook.com/ and create a new App (type: Business)\n2. Add the "Facebook Login" product to your app\n3. In Facebook Login > Settings, add redirect URI: {APP_URL}/api/integrations/oauth/callback\n4. Go to App Settings > Basic and copy the App ID and App Secret\n5. Paste them into Operon OAuth Settings and connect\n6. Note: pages_manage_posts and pages_read_engagement scopes require App Review for production use',
+        oauth: {
+            authUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
+            tokenUrl: 'https://graph.facebook.com/v21.0/oauth/access_token',
+            scopes: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement']
+        },
+        actionSchemas: {
+            publish_post: [
+                { name: 'pageId', label: 'Page ID', type: 'text', required: true, help: 'Numeric Page ID from Facebook' },
+                { name: 'message', label: 'Post Message', type: 'textarea', required: true }
+            ],
+            get_page_info: [
+                { name: 'pageId', label: 'Page ID', type: 'text', required: true }
+            ],
+            get_posts: [
+                { name: 'pageId', label: 'Page ID', type: 'text', required: true },
+                { name: 'limit', label: 'Number of Posts', type: 'number', help: 'Max posts to return (default 10)' }
+            ]
+        }
     }
 };
 

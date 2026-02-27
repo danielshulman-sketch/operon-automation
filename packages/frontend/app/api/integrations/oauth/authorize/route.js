@@ -42,6 +42,10 @@ async function buildAuthUrl(request, integrationName, clientId) {
         params.set('owner', 'workspace');
     }
 
+    if (integrationName === 'facebook_page') {
+        params.set('display', 'popup');
+    }
+
     const url = `${integration.oauth.authUrl}?${params.toString()}`;
     return { url };
 }

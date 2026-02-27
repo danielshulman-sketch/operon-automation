@@ -14,6 +14,7 @@ import { emailIntegration } from '@/lib/integrations/email';
 import { kartraIntegration } from '@/lib/integrations/kartra';
 import { mailerliteIntegration } from '@/lib/integrations/mailerlite';
 import { mailchimpIntegration } from '@/lib/integrations/mailchimp';
+import { facebookPageIntegration } from '@/lib/integrations/facebook';
 
 const INTEGRATIONS = {
     slack: slackIntegration,
@@ -24,7 +25,8 @@ const INTEGRATIONS = {
     email: emailIntegration,
     kartra: kartraIntegration,
     mailerlite: mailerliteIntegration,
-    mailchimp: mailchimpIntegration
+    mailchimp: mailchimpIntegration,
+    facebook_page: facebookPageIntegration
 };
 
 export async function GET(request, { params }) {
