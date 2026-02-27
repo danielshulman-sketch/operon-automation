@@ -969,7 +969,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         let igCreds: any = {};
                         try { igCreds = JSON.parse(igConnection.credentials); } catch { }
                         const igToken = igCreds.accessToken;
-                        const igUserId = igCreds.username || igConnection.name;
+                        const igUserId = igCreds.username || igCreds.userId;
 
                         // Debug logging
                         console.log('[IG-DEBUG] Connection ID:', igAccountId);
@@ -980,7 +980,23 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         console.log('[IG-DEBUG] Token first 20 chars:', igToken?.substring(0, 20));
                         console.log('[IG-DEBUG] IG User ID:', igUserId);
 
-                        if (!igToken) throw new Error('No access token found for this Instagram account.');
+                        if (!igToken) throw new Error('No access token found for this Instagram account. Disconnect and reconnect via Facebook OAuth on the Connections page.');
+
+                        // Validate token format — a real Facebook Page Access Token is 50+ chars
+                        // If the token is purely numeric and short, it's likely the IG user ID pasted by mistake
+                        if (igToken.length < 50 || /^\d+$/.test(igToken)) {
+                            throw new Error(
+                                'Invalid Instagram access token format. The stored token appears to be an Instagram User ID, not an OAuth access token. ' +
+                                'Please disconnect this Instagram account on the Connections page and reconnect via the "Connect with Facebook" button to get a proper Page Access Token.'
+                            );
+                        }
+
+                        if (!igUserId) {
+                            throw new Error(
+                                'Missing Instagram Business Account ID. The connection is missing the Instagram user ID needed for publishing. ' +
+                                'Please disconnect and reconnect via "Connect with Facebook" on the Connections page.'
+                            );
+                        }
 
                         const igContent = lastOutput || node.data?.content || '';
 
