@@ -254,9 +254,9 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         console.log('[SHEETS-SOURCE] Total rows fetched:', rows.length);
                         console.log('[SHEETS-SOURCE] First 5 rows:', JSON.stringify(rows.slice(0, 5)));
 
-                        // Find first row (skip header row 0) where status column is not 'done'
+                        // Find first row where status column is not 'done'
                         let usedRowIndex = -1;
-                        for (let i = 1; i < rows.length; i++) {
+                        for (let i = 0; i < rows.length; i++) {
                             const cellA = (rows[i]?.[0] || '').trim(); // Content Col
                             const cellB = (rows[i]?.[1] || '').trim().toLowerCase(); // Status Col
                             if (cellA && cellB !== 'done') {
@@ -346,14 +346,14 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                             if (userWithKey?.googleApiKey && sheetId) {
                                 try {
                                     const range = `${tab}!${contentCol}1:${statusCol}1000`;
-                                    const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
+                                    const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${userWithKey.googleApiKey}`);
                                     if (sheetsRes.ok) {
                                         const sheetData = await sheetsRes.json();
                                         const rows: string[][] = sheetData.values || [];
                                         const startRow = parseStartRowFromRange(sheetData.range);
 
                                         let usedRowIndex = -1;
-                                        for (let i = 1; i < rows.length; i++) {
+                                        for (let i = 0; i < rows.length; i++) {
                                             const cellA = (rows[i]?.[0] || '').trim(); // Content Col
                                             const cellB = (rows[i]?.[1] || '').trim().toLowerCase(); // Status Col
                                             if (cellA && cellB !== 'done') {
@@ -368,27 +368,40 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                         } else {
                                             const actualRow = startRow + usedRowIndex;
                                             const markRange = `${tab}!${statusCol}${actualRow}`;
-                                            const writeToken = await getGoogleWriteAccessToken(session.user.id);
+                                            let writeToken = await getGoogleWriteAccessToken(session.user.id);
                                             const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-                                            let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
+                                            let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(markRange)}?valueInputOption=USER_ENTERED`;
                                             if (writeToken) {
                                                 writeHeaders['Authorization'] = `Bearer ${writeToken}`;
                                             } else {
                                                 writeUrl += `&key=${userWithKey.googleApiKey}`;
                                             }
                                             try {
-                                                const markRes = await fetch(writeUrl, {
+                                                let markRes = await fetch(writeUrl, {
                                                     method: 'PUT',
                                                     headers: writeHeaders,
                                                     body: JSON.stringify({ values: [['done']] }),
                                                 });
+                                                if (!markRes.ok && writeToken && (markRes.status === 401 || markRes.status === 403)) {
+                                                    // Token may be stale; force refresh and retry once.
+                                                    writeToken = await getGoogleWriteAccessToken(session.user.id, true);
+                                                    if (writeToken) {
+                                                        markRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(markRange)}?valueInputOption=USER_ENTERED`, {
+                                                            method: 'PUT',
+                                                            headers: {
+                                                                'Content-Type': 'application/json',
+                                                                'Authorization': `Bearer ${writeToken}`,
+                                                            },
+                                                            body: JSON.stringify({ values: [['done']] }),
+                                                        });
+                                                    }
+                                                }
                                                 if (!markRes.ok) {
                                                     const markText = await markRes.text();
-                                                    throw new Error(`Failed to mark row as done: ${markText || markRes.statusText}`);
+                                                    console.error('[AI-GEN] Failed to mark row as done:', markText || markRes.statusText);
                                                 }
                                             } catch (markErr) {
                                                 console.error('[AI-GEN] Failed to mark row as done', markErr);
-                                                throw new Error(`Failed to mark row as done: ${markErr}`);
                                             }
                                         }
                                     } else {
@@ -481,7 +494,8 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                     case 'blog-creation': {
                         // 1. Determine Source Text
                         let sourceText = '';
-                        const contentSource = (node.data?.contentSource as string) || 'upstream';
+                        const rawContentSource = (node.data?.contentSource as string) || 'upstream';
+                        const contentSource = rawContentSource === 'google-sheets' ? 'upstream' : rawContentSource;
 
                         if (contentSource === 'rss') {
                             const rssUrl = (node.data?.rssUrl as string || '').trim();
@@ -522,7 +536,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                                         const startRow = parseStartRowFromRange(sheetData.range);
 
                                         let usedRowIndex = -1;
-                                        for (let i = 1; i < rows.length; i++) {
+                                        for (let i = 0; i < rows.length; i++) {
                                             const cellA = (rows[i]?.[0] || '').trim(); // Content Col
                                             const cellB = (rows[i]?.[1] || '').trim().toLowerCase(); // Status Col
                                             if (cellA && cellB !== 'done') {
@@ -956,6 +970,16 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                         try { igCreds = JSON.parse(igConnection.credentials); } catch { }
                         const igToken = igCreds.accessToken;
                         const igUserId = igCreds.username || igConnection.name;
+
+                        // Debug logging
+                        console.log('[IG-DEBUG] Connection ID:', igAccountId);
+                        console.log('[IG-DEBUG] Connection provider:', igConnection.provider);
+                        console.log('[IG-DEBUG] Connection name:', igConnection.name);
+                        console.log('[IG-DEBUG] Creds keys:', Object.keys(igCreds));
+                        console.log('[IG-DEBUG] Token present:', !!igToken, 'length:', igToken?.length);
+                        console.log('[IG-DEBUG] Token first 20 chars:', igToken?.substring(0, 20));
+                        console.log('[IG-DEBUG] IG User ID:', igUserId);
+
                         if (!igToken) throw new Error('No access token found for this Instagram account.');
 
                         const igContent = lastOutput || node.data?.content || '';
@@ -965,6 +989,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
 
                         if (imageUrl) {
                             // Image post: Create media container then publish
+                            console.log('[IG-DEBUG] Posting image to:', `https://graph.facebook.com/v19.0/${igUserId}/media`);
                             const containerRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -976,7 +1001,8 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                             });
 
                             const containerData = await containerRes.json();
-                            if (containerData.error) throw new Error(`Instagram API: ${containerData.error.message}`);
+                            console.log('[IG-DEBUG] Container response:', JSON.stringify(containerData).substring(0, 500));
+                            if (containerData.error) throw new Error(`Instagram Publisher: Instagram API: ${containerData.error.message}`);
 
                             const publishRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
                                 method: 'POST',
@@ -1352,17 +1378,67 @@ function parseStartRowFromRange(rangeOpt: string | undefined): number {
 }
 
 // Helper: Get OAuth 2.0 access token to write to Google Sheets
-async function getGoogleWriteAccessToken(userId: string): Promise<string | null> {
+async function getGoogleWriteAccessToken(userId: string, forceRefresh = false): Promise<string | null> {
     try {
-        const connection = await prisma.externalConnection.findFirst({
-            where: { userId, provider: 'google' }
+        const connections = await prisma.externalConnection.findMany({
+            where: { userId, provider: 'google' },
+            orderBy: { updatedAt: 'desc' },
         });
+        if (!connections.length) return null;
 
-        if (connection) {
-            const creds = JSON.parse(connection.credentials);
-            return creds.accessToken || null;
+        // Prefer a connection that has refreshToken; fallback to newest record.
+        let connection = connections[0];
+        for (const c of connections) {
+            const parsed = JSON.parse(c.credentials || '{}');
+            if (parsed.refreshToken) {
+                connection = c;
+                break;
+            }
         }
-        return null;
+
+        const creds = JSON.parse(connection.credentials || '{}');
+        const now = Date.now();
+        const expiresAt = typeof creds.expiresAt === 'number' ? creds.expiresAt : 0;
+
+        // Use current token only when we know it is still valid (with 60s buffer)
+        if (!forceRefresh && creds.accessToken && expiresAt && expiresAt > (now + 60_000)) {
+            return creds.accessToken;
+        }
+
+        // Attempt refresh when refresh token + client credentials are available
+        const refreshToken = creds.refreshToken;
+        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SHEETS_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SHEETS_CLIENT_SECRET;
+        if (refreshToken && clientId && clientSecret) {
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken,
+                }),
+            });
+
+            const tokenData = await tokenRes.json().catch(() => ({}));
+            if (tokenRes.ok && tokenData.access_token) {
+                const nextCreds = {
+                    ...creds,
+                    accessToken: tokenData.access_token,
+                    expiresAt: now + ((tokenData.expires_in || 3600) * 1000),
+                };
+                await prisma.externalConnection.update({
+                    where: { id: connection.id },
+                    data: { credentials: JSON.stringify(nextCreds) },
+                });
+                return nextCreds.accessToken;
+            }
+            console.error('Google token refresh failed:', tokenData);
+        }
+
+        // Last-resort fallback if no refresh path is available.
+        return creds.accessToken || null;
     } catch (e) {
         console.error("Failed to fetch Google OAuth token:", e);
         return null;

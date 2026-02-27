@@ -405,7 +405,16 @@ export default function ConnectionsPage() {
                                     </p>
                                 </CardContent>
                                 <CardFooter>
-                                    <Button variant="ghost" size="sm" className="w-full text-red-500 hover:text-red-600" onClick={() => store.removeAccount(account.id)}>
+                                    <Button variant="ghost" size="sm" className="w-full text-red-500 hover:text-red-600" onClick={async () => {
+                                        try {
+                                            await fetch(`/api/connections?id=${account.id}`, { method: 'DELETE' });
+                                            store.removeAccount(account.id);
+                                            toast.success('Connection removed');
+                                        } catch (e) {
+                                            console.error('Failed to disconnect:', e);
+                                            toast.error('Failed to disconnect');
+                                        }
+                                    }}>
                                         <RefreshCw className="mr-2 h-3 w-3" /> Disconnect
                                     </Button>
                                 </CardFooter>

@@ -44,15 +44,15 @@ export const NodeConfigPanel = () => {
     // Always get the latest version of the node from the nodes array to ensure reactivity
     const selectedNode = nodes.find(n => n.id === storedSelectedNode?.id);
 
-    if (!selectedNode) return null;
-
     const findPreviousNode = () => {
+        if (!selectedNode) return null;
         const incomingEdge = edges.find(e => e.target === selectedNode.id);
         if (!incomingEdge) return null;
         return nodes.find(n => n.id === incomingEdge.source) || null;
     };
 
     const applyGoogleSheetDetailsFromPreviousNode = (mode: 'source' | 'publisher') => {
+        if (!selectedNode) return;
         const previousNode = findPreviousNode();
         if (!previousNode) {
             toast.error('No previous node connected.');
@@ -99,6 +99,7 @@ export const NodeConfigPanel = () => {
     };
 
     useEffect(() => {
+        if (!selectedNode) return;
         const previousNode = findPreviousNode();
         if (!previousNode) return;
 
@@ -148,7 +149,9 @@ export const NodeConfigPanel = () => {
                 },
             }
             : n));
-    }, [selectedNode.id, selectedNode.type, selectedNode.data.contentSource, selectedNode.data.sheetId, selectedNode.data.sheetTab, selectedNode.data.sheetColumn, selectedNode.data.contentColumn, selectedNode.data.imageColumn, edges, nodes, setNodes]);
+    }, [selectedNode?.id, selectedNode?.type, selectedNode?.data?.contentSource, selectedNode?.data?.sheetId, selectedNode?.data?.sheetTab, selectedNode?.data?.sheetColumn, selectedNode?.data?.contentColumn, selectedNode?.data?.imageColumn, edges, nodes, setNodes]);
+
+    if (!selectedNode) return null;
 
     const handleTestExecution = async () => {
         setTestLoading(true);
@@ -603,7 +606,7 @@ export const NodeConfigPanel = () => {
                         <div className="grid gap-2">
                             <Label>Content Source</Label>
                             <Select
-                                value={(selectedNode.data.contentSource as string) || 'upstream'}
+                                value={((selectedNode.data.contentSource as string) === 'google-sheets' ? 'upstream' : ((selectedNode.data.contentSource as string) || 'upstream'))}
                                 onValueChange={(val) => {
                                     setNodes(nodes.map(n =>
                                         n.id === selectedNode.id
@@ -616,7 +619,6 @@ export const NodeConfigPanel = () => {
                                 <SelectContent>
                                     <SelectItem value="upstream">Upstream (Previous Node)</SelectItem>
                                     <SelectItem value="rss">RSS Feed</SelectItem>
-                                    <SelectItem value="google-sheets">Google Sheets</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -641,7 +643,7 @@ export const NodeConfigPanel = () => {
                                 </Select>
                             )}
 
-                            {(selectedNode.data.contentSource === 'google-sheets') && (
+                            {false && (selectedNode.data.contentSource === 'google-sheets') && (
                                 <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
                                     <Button
                                         variant="secondary"
