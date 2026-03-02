@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useFacebookSDK } from '@/components/providers/FacebookSDKProvider';
 import {
     Facebook,
     Linkedin,
@@ -25,8 +26,7 @@ import {
     RefreshCw,
     Plus,
     Trash2,
-    Save,
-    Loader2
+    Save
 } from 'lucide-react';
 import { useWorkflowStore } from '@/lib/store';
 import { ConnectionGuide } from '@/components/connections/ConnectionGuide';
@@ -39,7 +39,9 @@ export default function ConnectionsPage() {
     const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
     const [newRSSUrl, setNewRSSUrl] = useState('');
     const [newRSSName, setNewRSSName] = useState('');
+
     const [newAccountToken, setNewAccountToken] = useState('');
+
     const [facebookAppId, setFacebookAppId] = useState('');
     const [facebookAppSecret, setFacebookAppSecret] = useState('');
     const [isSavingFacebook, setIsSavingFacebook] = useState(false);
@@ -57,25 +59,140 @@ export default function ConnectionsPage() {
         }
     }, [isAddAccountOpen, hasLoadedSettings]);
 
-    const handleConnectFacebook = async () => {
-        if (facebookAppId || facebookAppSecret) {
-            setIsSavingFacebook(true);
-            try {
-                const updateData: any = {};
-                if (facebookAppId) updateData.facebookAppId = facebookAppId;
-                if (facebookAppSecret) updateData.facebookAppSecret = facebookAppSecret;
 
-                await fetch('/api/user/settings', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updateData),
-                });
-            } catch (err) {
-                console.error("Failed to save FB settings", err);
+
+
+    const [facebookPages, setFacebookPages] = useState<any[]>([]);
+    const [isFetchingPages, setIsFetchingPages] = useState(false);
+
+    const { login: fbLogin, isLoaded: fbLoaded } = useFacebookSDK();
+
+    const handleFacebookLogin = async () => {
+        try {
+            const response = await fbLogin();
+            if (response.authResponse?.accessToken) {
+                setNewAccountToken(response.authResponse.accessToken);
+                // Automatically fetch pages after setting token
+                // We need to pass the token directly because state update might be async
+                await fetchFacebookPages(response.authResponse.accessToken);
             }
-            setIsSavingFacebook(false);
+        } catch (error: any) {
+            console.error("Facebook Login Error:", error);
+            toast.error(`Facebook Login Failed: ${error.message}`);
         }
-        window.location.href = '/api/auth/facebook';
+    };
+
+    const fetchFacebookPages = async (overrideToken?: string) => {
+        const tokenToUse = overrideToken || newAccountToken;
+        if (!tokenToUse) return;
+
+        setIsFetchingPages(true);
+        try {
+            const res = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${tokenToUse}`);
+            const data = await res.json();
+
+            if (data.error) {
+                console.error("Facebook API Error:", data.error);
+                toast.error(`Facebook Error: ${data.error.message}`);
+                return;
+            }
+
+            if (data.data && Array.isArray(data.data)) {
+                if (data.data.length === 0) {
+                    console.warn("Token valid but 0 pages returned.");
+                    toast.error("Found 0 Pages. Did you select 'pages_show_list' AND check the boxes next to your pages in the popup?");
+                } else {
+                    setFacebookPages(data.data);
+                    toast.success(`Found ${data.data.length} pages`);
+
+                    // If Instagram platform selected, auto-fetch linked IG accounts
+                    if (newAccountPlatform === 'instagram') {
+                        for (const page of data.data) {
+                            try {
+                                const igRes = await fetch(
+                                    `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${page.access_token}`
+                                );
+                                const igData = await igRes.json();
+                                if (igData.instagram_business_account) {
+                                    const ig = igData.instagram_business_account;
+                                    const connRes = await fetch('/api/connections', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            platform: 'instagram',
+                                            name: ig.username || ig.name || `Instagram (${page.name})`,
+                                            accessToken: page.access_token,
+                                            username: ig.id
+                                        })
+                                    });
+                                    if (connRes.ok) {
+                                        const newConn = await connRes.json();
+                                        store.addAccount({
+                                            id: newConn.id,
+                                            platform: 'instagram' as any,
+                                            name: ig.username || ig.name || `Instagram (${page.name})`,
+                                            status: 'active',
+                                            username: ig.id,
+                                            accessToken: page.access_token
+                                        });
+                                        toast.success(`Connected Instagram: ${ig.username || ig.name}`);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error(`Error fetching IG for page ${page.id}:`, e);
+                            }
+                        }
+                        setFacebookPages([]);
+                        setNewAccountToken('');
+                        setIsAddAccountOpen(false);
+                    }
+                }
+            } else {
+                console.warn("Unexpected Facebook response:", data);
+                toast.error(`Invalid response: ${JSON.stringify(data)}`);
+            }
+        } catch (error: any) {
+            console.error("Fetch error:", error);
+            toast.error(`Network or Script Error: ${error.message}`);
+        } finally {
+            setIsFetchingPages(false);
+        }
+    };
+
+    const connectFacebookPage = async (page: any) => {
+        try {
+            const res = await fetch('/api/connections', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platform: 'facebook',
+                    name: page.name,
+                    username: page.id,
+                    accessToken: page.access_token // Page Access Token
+                })
+            });
+
+            if (!res.ok) throw new Error("Failed to save connection");
+
+            const newConnection = await res.json();
+
+            store.addAccount({
+                id: newConnection.id,
+                platform: 'facebook',
+                name: newConnection.name,
+                status: 'active',
+                username: page.id,
+                accessToken: page.access_token
+            });
+
+            setFacebookPages([]);
+            setNewAccountToken('');
+            setIsAddAccountOpen(false);
+            toast.success("Facebook Page Connected!");
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to connect page");
+        }
     };
 
     const handleAddAccount = async () => {
@@ -188,39 +305,42 @@ export default function ConnectionsPage() {
 
                                         {(newAccountPlatform === 'facebook' || newAccountPlatform === 'instagram') ? (
                                             <div className="flex flex-col gap-3">
-                                                <div className="grid gap-2 border p-3 rounded-md bg-muted/20">
-                                                    <p className="text-[11px] font-medium mb-1">Facebook App Credentials (Optional if in .env)</p>
-                                                    <Input
-                                                        placeholder="App ID"
-                                                        value={facebookAppId}
-                                                        onChange={(e) => setFacebookAppId(e.target.value)}
-                                                    />
-                                                    <Input
-                                                        type="password"
-                                                        placeholder="App Secret"
-                                                        value={facebookAppSecret}
-                                                        onChange={(e) => setFacebookAppSecret(e.target.value)}
-                                                    />
-                                                    <p className="text-[10px] text-muted-foreground m-0 leading-tight">
-                                                        Find these in your <a href="https://developers.facebook.com/apps" target="_blank" className="underline" rel="noreferrer">Facebook Developer Dashboard</a>.
-                                                    </p>
-                                                </div>
-
                                                 <Button
-                                                    onClick={handleConnectFacebook}
-                                                    disabled={isSavingFacebook}
+                                                    onClick={handleFacebookLogin}
+                                                    disabled={!fbLoaded}
                                                     className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white"
                                                 >
-                                                    {isSavingFacebook ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Facebook className="mr-2 h-4 w-4" />}
-                                                    {isSavingFacebook ? "Saving..." : "Connect with Facebook"}
+                                                    <Facebook className="mr-2 h-4 w-4" />
+                                                    Connect with Facebook
                                                 </Button>
                                                 <p className="text-[10px] text-muted-foreground text-center">
-                                                    You'll be redirected to Facebook to authorize this app.
+                                                    Opens a popup to authorize this app.
                                                 </p>
-                                                {newAccountPlatform === 'instagram' && (
-                                                    <p className="text-[10px] text-muted-foreground text-center">
-                                                        Instagram is added automatically from linked Facebook Pages.
-                                                    </p>
+
+                                                {/* Fallback for manual token if needed - only for Facebook, NOT Instagram */}
+                                                {newAccountPlatform === 'facebook' && (
+                                                    <>
+                                                        <div className="relative mt-2">
+                                                            <div className="absolute inset-0 flex items-center">
+                                                                <span className="w-full border-t" />
+                                                            </div>
+                                                            <div className="relative flex justify-center text-xs uppercase">
+                                                                <span className="bg-background px-2 text-muted-foreground">Or paste token</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex gap-2 mt-2">
+                                                            <Input
+                                                                type="password"
+                                                                placeholder="Paste User Access Token..."
+                                                                value={newAccountToken}
+                                                                onChange={(e) => setNewAccountToken(e.target.value)}
+                                                            />
+                                                            <Button onClick={() => fetchFacebookPages()} disabled={!newAccountToken || isFetchingPages} size="sm" variant="secondary">
+                                                                Fetch
+                                                            </Button>
+                                                        </div>
+                                                    </>
                                                 )}
                                             </div>
                                         ) : newAccountPlatform === 'linkedin' ? (
@@ -250,6 +370,27 @@ export default function ConnectionsPage() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {facebookPages.length > 0 && newAccountPlatform === 'facebook' && (
+                                        <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
+                                            <Label className="text-xs font-semibold">Select Page to Connect</Label>
+                                            {facebookPages.map((page) => (
+                                                <div key={page.id} className="flex items-center justify-between p-2 hover:bg-muted rounded border text-sm">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium">{page.name}</span>
+                                                        <span className="text-[10px] text-muted-foreground">{page.category}</span>
+                                                    </div>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => connectFacebookPage(page)}
+                                                    >
+                                                        Connect
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                                 <DialogFooter>
                                     {newAccountPlatform !== 'facebook' && newAccountPlatform !== 'instagram' && (
@@ -464,45 +605,6 @@ export default function ConnectionsPage() {
                             </CardContent>
                             <CardFooter>
                                 <Button className="w-full" variant="secondary" onClick={() => alert("Anthropic Settings Saved")}>Connect</Button>
-                            </CardFooter>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Bot className="w-5 h-5" /> OpenRouter
-                                </CardTitle>
-                                <CardDescription>Configure OpenRouter models access</CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label>API Key</Label>
-                                    <Input
-                                        type="password"
-                                        placeholder="sk-or-v1-..."
-                                        value={store.aiConfig.openrouterKey}
-                                        onChange={(e) => store.updateAIConfig({ openrouterKey: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Default Model</Label>
-                                    <Select
-                                        value={store.aiConfig.openrouterModel}
-                                        onValueChange={(val) => store.updateAIConfig({ openrouterModel: val })}
-                                    >
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="openrouter/auto">Auto Routing</SelectItem>
-                                            <SelectItem value="anthropic/claude-3-opus">Claude 3 Opus</SelectItem>
-                                            <SelectItem value="anthropic/claude-3-sonnet">Claude 3 Sonnet</SelectItem>
-                                            <SelectItem value="google/gemini-pro-1.5">Gemini 1.5 Pro</SelectItem>
-                                            <SelectItem value="meta-llama/llama-3-70b-instruct">LLaMA 3 70B</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </CardContent>
-                            <CardFooter>
-                                <Button className="w-full" variant="secondary" onClick={() => alert("OpenRouter Settings Saved")}>Connect</Button>
                             </CardFooter>
                         </Card>
                     </div>
