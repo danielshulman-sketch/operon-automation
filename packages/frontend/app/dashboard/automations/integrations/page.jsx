@@ -16,6 +16,8 @@ export default function IntegrationsPage() {
     const [expandedStats, setExpandedStats] = useState({});
     const [expandedInstructions, setExpandedInstructions] = useState({});
     const [errorMessage, setErrorMessage] = useState('');
+    const [oauthCredentials, setOauthCredentials] = useState({});
+    const [savingOAuth, setSavingOAuth] = useState({});
 
     useEffect(() => {
         fetchIntegrations();
@@ -140,34 +142,77 @@ export default function IntegrationsPage() {
         }));
     };
 
-    const handleConnectClick = async (integration, method = 'credentials') => {
-        if (method === 'oauth2') {
-            if (!integration.oauthReady) {
-                setErrorMessage('OAuth configuration missing. Add Client ID/Secret in OAuth Settings.');
+    const handleOAuthConnectClick = async (integration) => {
+        const creds = oauthCredentials[integration.id] || {};
+        const isFacebook = integration.id === 'facebook_page';
+        const clientIdLabel = isFacebook ? 'App ID' : 'Client ID';
+        const clientSecretLabel = isFacebook ? 'App Secret' : 'Client Secret';
+
+        // If not ready, we need to save creds first
+        if (!integration.oauthReady) {
+            if (!creds.clientId || !creds.clientSecret) {
+                setErrorMessage(`Please enter your ${clientIdLabel} and ${clientSecretLabel}.`);
                 return;
             }
+
             try {
+                setSavingOAuth(prev => ({ ...prev, [integration.id]: true }));
+                setErrorMessage('');
                 const token = localStorage.getItem('auth_token');
-                const res = await fetch('/api/integrations/oauth/authorize', {
-                    method: 'POST',
+                const saveRes = await fetch('/api/integrations/oauth-settings', {
+                    method: 'PUT',
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ integration: integration.id }),
+                    body: JSON.stringify({
+                        integrationName: integration.id,
+                        clientId: creds.clientId,
+                        clientSecret: creds.clientSecret,
+                    }),
                 });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.url) {
-                        window.location.href = data.url;
-                        return;
-                    }
+
+                if (!saveRes.ok) {
+                    const data = await saveRes.json();
+                    setErrorMessage(data.error || 'Failed to save credentials.');
+                    return;
                 }
-                const error = await res.json();
-                setErrorMessage(error.error || 'Failed to start OAuth flow.');
             } catch (error) {
-                setErrorMessage('Failed to start OAuth flow.');
+                setErrorMessage('Failed to save credentials.');
+                return;
+            } finally {
+                setSavingOAuth(prev => ({ ...prev, [integration.id]: false }));
             }
+        }
+
+        // Now start the OAuth flow
+        try {
+            const token = localStorage.getItem('auth_token');
+            const res = await fetch('/api/integrations/oauth/authorize', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ integration: integration.id }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.url) {
+                    window.location.href = data.url;
+                    return;
+                }
+            }
+            const error = await res.json();
+            setErrorMessage(error.error || 'Failed to start OAuth flow.');
+        } catch (error) {
+            setErrorMessage('Failed to start OAuth flow.');
+        }
+    };
+
+    const handleConnectClick = async (integration, method = 'credentials') => {
+        if (method === 'oauth2') {
+            await handleOAuthConnectClick(integration);
             return;
         }
         setConnectingIntegration(integration);
@@ -384,6 +429,48 @@ export default function IntegrationsPage() {
                                 </div>
                             )}
 
+                            {/* Inline OAuth credential fields for OAuth-only integrations without saved config */}
+                            {!integration.connected && supportsOAuth(integration) && !supportsCredentialAuth(integration) && !integration.oauthReady && (() => {
+                                const isFb = integration.id === 'facebook_page';
+                                const idLabel = isFb ? 'App ID' : 'Client ID';
+                                const secretLabel = isFb ? 'App Secret' : 'Client Secret';
+                                const creds = oauthCredentials[integration.id] || {};
+                                return (
+                                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                                {idLabel}
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={creds.clientId || ''}
+                                                onChange={(e) => setOauthCredentials(prev => ({
+                                                    ...prev,
+                                                    [integration.id]: { ...prev[integration.id], clientId: e.target.value }
+                                                }))}
+                                                placeholder={`Enter ${idLabel}`}
+                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-black/20 text-black dark:text-white text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                                {secretLabel}
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={creds.clientSecret || ''}
+                                                onChange={(e) => setOauthCredentials(prev => ({
+                                                    ...prev,
+                                                    [integration.id]: { ...prev[integration.id], clientSecret: e.target.value }
+                                                }))}
+                                                placeholder={`Enter ${secretLabel}`}
+                                                className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-black/20 text-black dark:text-white text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
                             <div className="mt-auto pt-4">
                                 {integration.connected ? (
                                     <button
@@ -412,11 +499,11 @@ export default function IntegrationsPage() {
                                     ) : (
                                         <button
                                             onClick={() => handleConnectClick(integration, supportsOAuth(integration) ? 'oauth2' : 'credentials')}
-                                            disabled={supportsOAuth(integration) && !integration.oauthReady}
+                                            disabled={savingOAuth[integration.id]}
                                             className="w-full py-2.5 rounded-xl bg-black dark:bg-white text-white dark:text-black font-inter font-medium text-sm hover:scale-[0.98] transition-transform flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
-                                            {supportsOAuth(integration) && !integration.oauthReady
-                                                ? 'Missing OAuth Config'
+                                            {savingOAuth[integration.id]
+                                                ? 'Saving & Connecting...'
                                                 : 'Connect'}
                                         </button>
                                     )
