@@ -73,8 +73,14 @@ export async function GET(request) {
                 const prefix = integration.id.toUpperCase();
                 const storedClientId = oauthConfigMap[integration.id]?.clientId;
                 const storedClientSecret = oauthConfigMap[integration.id]?.clientSecret;
-                const clientId = storedClientId || process.env[`${prefix}_CLIENT_ID`];
-                const clientSecret = storedClientSecret || process.env[`${prefix}_CLIENT_SECRET`];
+                let clientId = storedClientId || process.env[`${prefix}_CLIENT_ID`];
+                let clientSecret = storedClientSecret || process.env[`${prefix}_CLIENT_SECRET`];
+
+                if (integration.id === 'facebook_page') {
+                    clientId = clientId || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID;
+                    clientSecret = clientSecret || process.env.FACEBOOK_APP_SECRET || process.env.FACEBOOK_PAGE_SECRET;
+                }
+
                 oauthReady = Boolean(clientId && clientSecret);
             }
 

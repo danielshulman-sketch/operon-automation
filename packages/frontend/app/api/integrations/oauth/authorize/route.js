@@ -76,7 +76,12 @@ export async function POST(request) {
         }
 
         const storedClientId = await getStoredClientId(user.org_id, integrationName);
-        const envClientId = process.env[`${integrationName.toUpperCase()}_CLIENT_ID`];
+        let envClientId = process.env[`${integrationName.toUpperCase()}_CLIENT_ID`];
+
+        if (integrationName === 'facebook_page') {
+            envClientId = envClientId || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID;
+        }
+
         const clientId = storedClientId || envClientId;
 
         if (!clientId) {
@@ -111,7 +116,12 @@ export async function GET(request) {
             return NextResponse.redirect(url);
         }
 
-        const envClientId = process.env[`${integrationName.toUpperCase()}_CLIENT_ID`];
+        let envClientId = process.env[`${integrationName.toUpperCase()}_CLIENT_ID`];
+
+        if (integrationName === 'facebook_page') {
+            envClientId = envClientId || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID;
+        }
+
         if (!envClientId) {
             const url = new URL(
                 `/dashboard/automations/integrations?error=${encodeURIComponent('Configuration missing (Client ID)')}`,

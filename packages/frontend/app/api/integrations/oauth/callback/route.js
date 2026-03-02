@@ -56,6 +56,12 @@ export async function GET(request) {
         let clientId = process.env[`${integrationName.toUpperCase()}_CLIENT_ID`];
         let clientSecret = process.env[`${integrationName.toUpperCase()}_CLIENT_SECRET`];
 
+        // Custom fallbacks for Facebook since we documented different env vars
+        if (integrationName === 'facebook_page') {
+            clientId = clientId || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID;
+            clientSecret = clientSecret || process.env.FACEBOOK_APP_SECRET || process.env.FACEBOOK_PAGE_SECRET;
+        }
+
         try {
             await ensureOAuthClientCredentialsTable();
             const oauthResult = await query(
@@ -106,6 +112,16 @@ export async function GET(request) {
                     code,
                     redirect_uri: redirectUri
                 })
+            });
+        } else if (integrationName === 'facebook_page') {
+            const params = new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret,
+                code: code,
+                redirect_uri: redirectUri
+            });
+            tokenResponse = await fetch(`${integration.oauth.tokenUrl}?${params.toString()}`, {
+                method: 'GET'
             });
         } else {
             tokenResponse = await fetch(integration.oauth.tokenUrl, {
