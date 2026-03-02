@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useFacebookSDK, FacebookSDKProvider } from '@/components/providers/FacebookSDKProvider';
 import {
     Facebook,
     Linkedin,
@@ -42,48 +41,19 @@ function ConnectionsPageContent() {
 
     const [newAccountToken, setNewAccountToken] = useState('');
 
-    const [facebookAppId, setFacebookAppId] = useState('');
-    const [facebookAppSecret, setFacebookAppSecret] = useState('');
-    const [isSavingFacebook, setIsSavingFacebook] = useState(false);
-    const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
-
-    useEffect(() => {
-        if (isAddAccountOpen && !hasLoadedSettings) {
-            fetch('/api/user/settings')
-                .then(res => res.json())
-                .then(data => {
-                    if (data.facebookAppId) setFacebookAppId(data.facebookAppId);
-                    setHasLoadedSettings(true);
-                })
-                .catch(() => { });
-        }
-    }, [isAddAccountOpen, hasLoadedSettings]);
-
+    // Removed Facebook SDK App ID state logic
 
 
 
     const [facebookPages, setFacebookPages] = useState<any[]>([]);
     const [isFetchingPages, setIsFetchingPages] = useState(false);
 
-    const { login: fbLogin, isLoaded: fbLoaded } = useFacebookSDK();
-
-    const handleFacebookLogin = async () => {
-        try {
-            if (!facebookAppId) {
-                toast.error("Please enter and save your Facebook App ID first.");
-                return;
-            }
-            const response = await fbLogin(facebookAppId);
-            if (response.authResponse?.accessToken) {
-                setNewAccountToken(response.authResponse.accessToken);
-                // Automatically fetch pages after setting token
-                // We need to pass the token directly because state update might be async
-                await fetchFacebookPages(response.authResponse.accessToken);
-            }
-        } catch (error: any) {
-            console.error("Facebook Login Error:", error);
-            toast.error(`Facebook Login Failed: ${error.message}`);
+    const handleFetchPagesWithToken = async () => {
+        if (!newAccountToken) {
+            toast.error("Please enter a Facebook Graph API Token first.");
+            return;
         }
+        await fetchFacebookPages(newAccountToken);
     };
 
     const fetchFacebookPages = async (overrideToken?: string) => {
@@ -309,93 +279,31 @@ function ConnectionsPageContent() {
 
                                         {(newAccountPlatform === 'facebook' || newAccountPlatform === 'instagram') ? (
                                             <div className="flex flex-col gap-3">
-                                                {/* App ID & App Secret fields */}
-                                                <div className="border rounded-md p-3 space-y-3 bg-muted/30">
-                                                    <p className="text-xs font-semibold text-muted-foreground">Facebook App Credentials</p>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs">App ID</Label>
-                                                        <Input
-                                                            placeholder="Enter your Facebook App ID"
-                                                            value={facebookAppId}
-                                                            onChange={(e) => setFacebookAppId(e.target.value)}
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs">App Secret</Label>
-                                                        <Input
-                                                            type="password"
-                                                            placeholder="Enter your Facebook App Secret"
-                                                            value={facebookAppSecret}
-                                                            onChange={(e) => setFacebookAppSecret(e.target.value)}
-                                                        />
-                                                    </div>
-                                                    <Button
-                                                        variant="secondary"
-                                                        size="sm"
-                                                        className="w-full"
-                                                        disabled={isSavingFacebook || !facebookAppId || !facebookAppSecret}
-                                                        onClick={async () => {
-                                                            setIsSavingFacebook(true);
-                                                            try {
-                                                                const res = await fetch('/api/user/settings', {
-                                                                    method: 'PUT',
-                                                                    headers: { 'Content-Type': 'application/json' },
-                                                                    body: JSON.stringify({ facebookAppId, facebookAppSecret }),
-                                                                });
-                                                                if (res.ok) {
-                                                                    toast.success('Facebook credentials saved!');
-                                                                } else {
-                                                                    toast.error('Failed to save credentials');
-                                                                }
-                                                            } catch (err) {
-                                                                toast.error('Failed to save credentials');
-                                                            } finally {
-                                                                setIsSavingFacebook(false);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Save className="mr-2 h-3 w-3" />
-                                                        {isSavingFacebook ? 'Saving...' : 'Save Credentials'}
-                                                    </Button>
+                                                <div className="bg-muted/50 p-3 rounded-md text-xs space-y-2 mb-2">
+                                                    <p className="font-semibold">How to connect:</p>
+                                                    <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
+                                                        <li>Go to the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Facebook Graph API Explorer</a></li>
+                                                        <li>Select your App, and set <strong>User or Page</strong> to "User Token"</li>
+                                                        <li>Add Permissions: <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code> {(newAccountPlatform === 'instagram') && <code>, instagram_basic, instagram_content_publish</code>}</li>
+                                                        <li>Click "Generate Access Token" and paste it below.</li>
+                                                    </ol>
                                                 </div>
 
-                                                <Button
-                                                    onClick={handleFacebookLogin}
-                                                    disabled={!fbLoaded}
-                                                    className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white"
-                                                >
-                                                    <Facebook className="mr-2 h-4 w-4" />
-                                                    Connect with Facebook
-                                                </Button>
-                                                <p className="text-[10px] text-muted-foreground text-center">
-                                                    Save your App ID & Secret above first, then click Connect.
-                                                </p>
-
-                                                {/* Fallback for manual token if needed - only for Facebook, NOT Instagram */}
-                                                {newAccountPlatform === 'facebook' && (
-                                                    <>
-                                                        <div className="relative mt-2">
-                                                            <div className="absolute inset-0 flex items-center">
-                                                                <span className="w-full border-t" />
-                                                            </div>
-                                                            <div className="relative flex justify-center text-xs uppercase">
-                                                                <span className="bg-background px-2 text-muted-foreground">Or paste token</span>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="flex gap-2 mt-2">
-                                                            <Input
-                                                                type="password"
-                                                                placeholder="Paste User Access Token..."
-                                                                value={newAccountToken}
-                                                                onChange={(e) => setNewAccountToken(e.target.value)}
-                                                            />
-                                                            <Button onClick={() => fetchFacebookPages()} disabled={!newAccountToken || isFetchingPages} size="sm" variant="secondary">
-                                                                Fetch
-                                                            </Button>
-                                                        </div>
-                                                    </>
-                                                )}
+                                                <div className="space-y-2">
+                                                    <Input
+                                                        type="password"
+                                                        placeholder="Paste Graph API User Access Token here..."
+                                                        value={newAccountToken}
+                                                        onChange={(e) => setNewAccountToken(e.target.value)}
+                                                    />
+                                                    <Button
+                                                        onClick={handleFetchPagesWithToken}
+                                                        disabled={!newAccountToken || isFetchingPages}
+                                                        className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white"
+                                                    >
+                                                        {isFetchingPages ? 'Fetching...' : 'Fetch Pages'}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ) : newAccountPlatform === 'linkedin' ? (
                                             <div className="flex flex-col gap-3">
@@ -719,8 +627,6 @@ function ConnectionsPageContent() {
 
 export default function ConnectionsPage() {
     return (
-        <FacebookSDKProvider>
-            <ConnectionsPageContent />
-        </FacebookSDKProvider>
+        <ConnectionsPageContent />
     );
 }
