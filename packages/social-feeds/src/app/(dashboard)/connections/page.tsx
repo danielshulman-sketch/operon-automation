@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -305,6 +305,56 @@ export default function ConnectionsPage() {
 
                                         {(newAccountPlatform === 'facebook' || newAccountPlatform === 'instagram') ? (
                                             <div className="flex flex-col gap-3">
+                                                {/* App ID & App Secret fields */}
+                                                <div className="border rounded-md p-3 space-y-3 bg-muted/30">
+                                                    <p className="text-xs font-semibold text-muted-foreground">Facebook App Credentials</p>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">App ID</Label>
+                                                        <Input
+                                                            placeholder="Enter your Facebook App ID"
+                                                            value={facebookAppId}
+                                                            onChange={(e) => setFacebookAppId(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">App Secret</Label>
+                                                        <Input
+                                                            type="password"
+                                                            placeholder="Enter your Facebook App Secret"
+                                                            value={facebookAppSecret}
+                                                            onChange={(e) => setFacebookAppSecret(e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="w-full"
+                                                        disabled={isSavingFacebook || !facebookAppId || !facebookAppSecret}
+                                                        onClick={async () => {
+                                                            setIsSavingFacebook(true);
+                                                            try {
+                                                                const res = await fetch('/api/user/settings', {
+                                                                    method: 'PUT',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ facebookAppId, facebookAppSecret }),
+                                                                });
+                                                                if (res.ok) {
+                                                                    toast.success('Facebook credentials saved!');
+                                                                } else {
+                                                                    toast.error('Failed to save credentials');
+                                                                }
+                                                            } catch (err) {
+                                                                toast.error('Failed to save credentials');
+                                                            } finally {
+                                                                setIsSavingFacebook(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Save className="mr-2 h-3 w-3" />
+                                                        {isSavingFacebook ? 'Saving...' : 'Save Credentials'}
+                                                    </Button>
+                                                </div>
+
                                                 <Button
                                                     onClick={handleFacebookLogin}
                                                     disabled={!fbLoaded}
@@ -314,7 +364,7 @@ export default function ConnectionsPage() {
                                                     Connect with Facebook
                                                 </Button>
                                                 <p className="text-[10px] text-muted-foreground text-center">
-                                                    Opens a popup to authorize this app.
+                                                    Save your App ID & Secret above first, then click Connect.
                                                 </p>
 
                                                 {/* Fallback for manual token if needed - only for Facebook, NOT Instagram */}
