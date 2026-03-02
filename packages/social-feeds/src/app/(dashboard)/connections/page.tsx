@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useFacebookSDK } from '@/components/providers/FacebookSDKProvider';
+import { useFacebookSDK, FacebookSDKProvider } from '@/components/providers/FacebookSDKProvider';
 import {
     Facebook,
     Linkedin,
@@ -32,7 +32,7 @@ import { useWorkflowStore } from '@/lib/store';
 import { ConnectionGuide } from '@/components/connections/ConnectionGuide';
 import { toast } from 'sonner';
 
-export default function ConnectionsPage() {
+function ConnectionsPageContent() {
     const store = useWorkflowStore();
     const [newAccountName, setNewAccountName] = useState('');
     const [newAccountPlatform, setNewAccountPlatform] = useState<'facebook' | 'linkedin' | 'instagram' | 'threads' | 'wordpress' | 'wix' | 'squarespace'>('facebook');
@@ -69,7 +69,11 @@ export default function ConnectionsPage() {
 
     const handleFacebookLogin = async () => {
         try {
-            const response = await fbLogin();
+            if (!facebookAppId) {
+                toast.error("Please enter and save your Facebook App ID first.");
+                return;
+            }
+            const response = await fbLogin(facebookAppId);
             if (response.authResponse?.accessToken) {
                 setNewAccountToken(response.authResponse.accessToken);
                 // Automatically fetch pages after setting token
@@ -710,5 +714,13 @@ export default function ConnectionsPage() {
 
             <ConnectionGuide />
         </div>
+    );
+}
+
+export default function ConnectionsPage() {
+    return (
+        <FacebookSDKProvider>
+            <ConnectionsPageContent />
+        </FacebookSDKProvider>
     );
 }

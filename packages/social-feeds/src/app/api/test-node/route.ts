@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -48,12 +48,34 @@ export async function POST(req: Request) {
                 const userWithKey = await prisma.user.findUnique({ where: { id: session.user.id }, select: { googleApiKey: true } });
                 if (userWithKey?.googleApiKey && sheetId) {
                     try {
-                        const range = `${sheetTab || 'Sheet1'}!${sheetColumn || 'A'}1:${sheetColumn || 'A'}5`;
+                        const range = `${sheetTab || 'Sheet1'}!${sheetColumn || 'A'}1:${sheetColumn || 'A'}1000`;
                         const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
                         if (sheetsRes.ok) {
                             const sheetData = await sheetsRes.json();
-                            const rows = sheetData.values || [];
-                            inputContent = rows.flat().filter(Boolean).join('\n');
+                            const rows: string[][] = sheetData.values || [];
+                            let usedRowIndex = -1;
+                            for (let i = 0; i < rows.length; i++) {
+                                const titleCell = (rows[i]?.[0] || '').trim();
+                                const doneCell = (rows[i]?.[1] || '').trim().toLowerCase();
+                                if (titleCell && doneCell !== 'done') {
+                                    inputContent = titleCell;
+                                    usedRowIndex = i;
+                                    break;
+                                }
+                            }
+
+                            if (usedRowIndex === -1) {
+                                inputContent = 'All rows in the sheet have been processed (marked as done).';
+                            } else {
+                                const statusCol = String.fromCharCode(((sheetColumn || 'A').toUpperCase().charCodeAt(0) + 1 > 90) ? 90 : (sheetColumn || 'A').toUpperCase().charCodeAt(0) + 1);
+                                const actualRow = usedRowIndex + 1;
+                                const markRange = `${sheetTab || 'Sheet1'}!${statusCol}${actualRow}`;
+                                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED&key=${userWithKey.googleApiKey}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ values: [['done']] }),
+                                });
+                            }
                         } else {
                             inputContent = `Error fetching Sheet: ${sheetsRes.statusText}`;
                         }
@@ -90,8 +112,52 @@ export async function POST(req: Request) {
             // Get the user's API key from the database
             const user = await prisma.user.findUnique({
                 where: { id: session.user.id },
-                select: { openaiApiKey: true },
+                select: { openaiApiKey: true, openrouterApiKey: true },
             });
+
+            if (provider === 'openrouter') {
+                if (!user?.openrouterApiKey) {
+                    return NextResponse.json({
+                        success: false,
+                        error: 'No OpenRouter API key configured. Go to Settings to add your API key.',
+                    }, { status: 400 });
+                }
+
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${user.openrouterApiKey}`,
+                        'HTTP-Referer': 'https://social-feeds.com',
+                        'X-Title': 'Social Feeds Poster',
+                    },
+                    body: JSON.stringify({
+                        model: body.model || 'openrouter/auto',
+                        messages: [
+                            { role: 'system', content: enhancedPersona },
+                            { role: 'user', content: fullPrompt },
+                        ],
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    return NextResponse.json({
+                        success: false,
+                        error: `OpenRouter API error: ${errorData.error?.message || 'Unknown error'}`,
+                    }, { status: 500 });
+                }
+
+                const data = await response.json();
+                const generatedText = data.choices[0]?.message?.content || 'No content generated.';
+
+                return NextResponse.json({
+                    success: true,
+                    result: generatedText,
+                    provider: 'openrouter',
+                    tokensUsed: data.usage?.total_tokens || 0,
+                });
+            }
 
             const openaiKey = user?.openaiApiKey;
 
@@ -141,7 +207,8 @@ export async function POST(req: Request) {
 
 
         if (nodeType === 'blog-creation') {
-            const { contentSource, rssUrl, sheetId, sheetTab, sheetColumn } = body;
+            const { contentSource: rawContentSource, rssUrl } = body;
+            const contentSource = rawContentSource === 'google-sheets' ? 'upstream' : rawContentSource;
             let sourceText = '';
 
             if (contentSource === 'rss') {
@@ -164,23 +231,6 @@ export async function POST(req: Request) {
                     } catch (e) {
                         sourceText = `Error fetching RSS: ${url}`;
                     }
-                }
-            } else if (contentSource === 'google-sheets') {
-                const userWithKey = await prisma.user.findUnique({ where: { id: session.user.id }, select: { googleApiKey: true } });
-                if (userWithKey?.googleApiKey && sheetId) {
-                    try {
-                        const range = `${sheetTab || 'Sheet1'}!${sheetColumn || 'A'}1:${sheetColumn || 'A'}5`;
-                        const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
-                        if (sheetsRes.ok) {
-                            const sheetData = await sheetsRes.json();
-                            const rows = sheetData.values || [];
-                            sourceText = rows.flat().filter(Boolean).join('\n');
-                        }
-                    } catch (e) {
-                        sourceText = `Error fetching Sheet: ${e}`;
-                    }
-                } else {
-                    sourceText = "Google Sheets source requires a Google API Key.";
                 }
             } else {
                 sourceText = "Sample upstream content for blog generation testing.";
@@ -228,7 +278,7 @@ export async function POST(req: Request) {
             if (provider === 'dalle-3') {
                 const user = await prisma.user.findUnique({
                     where: { id: session.user.id },
-                    select: { openaiApiKey: true },
+                    select: { openaiApiKey: true, openrouterApiKey: true },
                 });
                 // @ts-ignore
                 if (!user?.openaiApiKey) {

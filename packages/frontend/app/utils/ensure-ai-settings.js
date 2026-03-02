@@ -22,6 +22,8 @@ export async function ensureAiSettingsTable() {
             openai_api_key TEXT,
             anthropic_api_key TEXT,
             google_api_key TEXT,
+            abacus_api_key TEXT,
+            abacus_deployment_id TEXT,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW(),
             UNIQUE(org_id)

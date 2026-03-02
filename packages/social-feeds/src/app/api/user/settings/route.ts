@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = 'force-dynamic';
+
 // GET user settings (including masked API key)
 export async function GET() {
     const session = await getServerSession(authOptions);
@@ -10,7 +12,7 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { name: true, email: true, openaiApiKey: true, googleApiKey: true, linkedinClientId: true, linkedinClientSecret: true },
+        select: { name: true, email: true, openaiApiKey: true, googleApiKey: true, linkedinClientId: true, linkedinClientSecret: true, facebookAppId: true, facebookAppSecret: true },
     });
 
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -28,6 +30,8 @@ export async function GET() {
             : null,
         hasLinkedinCredentials: !!(user.linkedinClientId && user.linkedinClientSecret),
         linkedinClientId: user.linkedinClientId || '',
+        hasFacebookAppCredentials: !!(user.facebookAppId && user.facebookAppSecret),
+        facebookAppId: user.facebookAppId || '',
     });
 }
 
@@ -44,6 +48,8 @@ export async function PUT(req: Request) {
     if (body.googleApiKey !== undefined) updateData.googleApiKey = body.googleApiKey;
     if (body.linkedinClientId !== undefined) updateData.linkedinClientId = body.linkedinClientId;
     if (body.linkedinClientSecret !== undefined) updateData.linkedinClientSecret = body.linkedinClientSecret;
+    if (body.facebookAppId !== undefined) updateData.facebookAppId = body.facebookAppId;
+    if (body.facebookAppSecret !== undefined) updateData.facebookAppSecret = body.facebookAppSecret;
 
     const user = await prisma.user.update({
         where: { id: session.user.id },

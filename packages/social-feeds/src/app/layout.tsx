@@ -11,7 +11,6 @@ export const metadata: Metadata = {
 };
 
 import NextAuthSessionProvider from "@/components/providers/SessionProvider";
-import { FacebookSDKProvider } from "@/components/providers/FacebookSDKProvider";
 import DataSyncProvider from "@/components/providers/DataSyncProvider";
 import { Toaster } from "@/components/ui/sonner"; // Assuming sonner is used, if not I'll check.
 
@@ -25,10 +24,8 @@ export default function RootLayout({
       <body className={inter.className}>
         <NextAuthSessionProvider>
           <DataSyncProvider>
-            <FacebookSDKProvider>
-              {children}
-              <Toaster />
-            </FacebookSDKProvider>
+            {children}
+            <Toaster />
           </DataSyncProvider>
         </NextAuthSessionProvider>
       </body>

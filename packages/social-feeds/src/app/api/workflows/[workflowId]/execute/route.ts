@@ -29,6 +29,35 @@ const extractTag = (xml: string, tag: string) => {
     return decodeHtml(match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim());
 };
 
+const normalizeAccessToken = (raw: unknown): string => {
+    if (typeof raw !== 'string') return '';
+    let token = raw.trim();
+
+    if (
+        (token.startsWith('"') && token.endsWith('"')) ||
+        (token.startsWith("'") && token.endsWith("'"))
+    ) {
+        token = token.slice(1, -1).trim();
+    }
+
+    if ((token.startsWith('{') && token.endsWith('}')) || (token.startsWith('[') && token.endsWith(']'))) {
+        try {
+            const parsed = JSON.parse(token);
+            const candidate =
+                parsed?.access_token ??
+                parsed?.accessToken ??
+                parsed?.token ??
+                parsed?.authResponse?.accessToken ??
+                '';
+            token = typeof candidate === 'string' ? candidate.trim() : '';
+        } catch {
+            // Keep original token if parsing fails.
+        }
+    }
+
+    return token;
+};
+
 const parseRssItems = (xml: string) => {
     const itemMatches = xml.match(/<item>[\s\S]*?<\/item>/gi) || [];
     return itemMatches.map((itemXml) => ({
@@ -968,7 +997,7 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
 
                         let igCreds: any = {};
                         try { igCreds = JSON.parse(igConnection.credentials); } catch { }
-                        const igToken = igCreds.accessToken;
+                        const igToken = normalizeAccessToken(igCreds.accessToken);
                         const igUserId = igCreds.username || igCreds.userId;
 
                         // Debug logging
@@ -988,6 +1017,13 @@ export async function POST(req: Request, props: { params: Promise<{ workflowId: 
                             throw new Error(
                                 'Invalid Instagram access token format. The stored token appears to be an Instagram User ID, not an OAuth access token. ' +
                                 'Please disconnect this Instagram account on the Connections page and reconnect via the "Connect with Facebook" button to get a proper Page Access Token.'
+                            );
+                        }
+
+                        if (/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i.test(igToken)) {
+                            throw new Error(
+                                'Instagram access token is stored in encrypted format and cannot be used for publishing. ' +
+                                'Please disconnect and reconnect this Instagram account from the Connections page.'
                             );
                         }
 

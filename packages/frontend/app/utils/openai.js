@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { query } from './db';
 import { ensureAiSettingsTable } from './ensure-ai-settings';
 import { getOrgOpenAIKey } from './openai-keys';
+import { decrypt } from './encryption';
 
 const DEFAULT_MODELS = {
     openai: 'gpt-4o-mini',
@@ -11,7 +12,7 @@ const DEFAULT_MODELS = {
     google: 'gemini-1.5-pro',
 };
 
-const ALLOWED_PROVIDERS = ['openai', 'anthropic', 'google'];
+const ALLOWED_PROVIDERS = ['openai', 'anthropic', 'google', 'abacus'];
 
 const normalizeProvider = (provider) =>
     ALLOWED_PROVIDERS.includes(provider) ? provider : 'openai';
@@ -45,13 +46,15 @@ async function resolveOrgAiSettings(orgId) {
             openaiKey: defaultOpenAIKey || null,
             anthropicKey: defaultAnthropicKey || null,
             googleKey: defaultGoogleKey || null,
+            abacusKey: process.env.ABACUS_API_KEY || null,
+            abacusDeploymentId: process.env.ABACUS_DEPLOYMENT_ID || null,
         };
     }
 
     await ensureAiSettingsTable();
 
     const result = await query(
-        `SELECT provider, model, openai_api_key, anthropic_api_key, google_api_key
+        `SELECT provider, model, openai_api_key, anthropic_api_key, google_api_key, abacus_api_key, abacus_deployment_id
          FROM org_ai_settings
          WHERE org_id = $1
          LIMIT 1`,
@@ -61,9 +64,11 @@ async function resolveOrgAiSettings(orgId) {
     const row = result.rows[0] || {};
     const provider = normalizeProvider(row.provider || 'openai');
     const model = row.model || DEFAULT_MODELS[provider];
-    const openaiKey = row.openai_api_key || (await getOrgOpenAIKey(orgId)) || defaultOpenAIKey || null;
-    const anthropicKey = row.anthropic_api_key || defaultAnthropicKey || null;
-    const googleKey = row.google_api_key || defaultGoogleKey || null;
+    const openaiKey = decrypt(row.openai_api_key) || (await getOrgOpenAIKey(orgId)) || defaultOpenAIKey || null;
+    const anthropicKey = decrypt(row.anthropic_api_key) || defaultAnthropicKey || null;
+    const googleKey = decrypt(row.google_api_key) || defaultGoogleKey || null;
+    const abacusKey = decrypt(row.abacus_api_key) || process.env.ABACUS_API_KEY || null;
+    const abacusDeploymentId = row.abacus_deployment_id || process.env.ABACUS_DEPLOYMENT_ID || null;
 
     return {
         provider,
@@ -71,6 +76,8 @@ async function resolveOrgAiSettings(orgId) {
         openaiKey,
         anthropicKey,
         googleKey,
+        abacusKey,
+        abacusDeploymentId,
     };
 }
 
@@ -80,6 +87,9 @@ function getProviderKey(settings) {
     }
     if (settings.provider === 'google') {
         return settings.googleKey;
+    }
+    if (settings.provider === 'abacus') {
+        return settings.abacusKey;
     }
     return settings.openaiKey;
 }
@@ -155,6 +165,41 @@ async function runStructuredPrompt({ orgId, systemPrompt, userPrompt, maxTokens 
     return extractJson(completion.choices?.[0]?.message?.content || '');
 }
 
+async function generateAbacusResponse({ apiKey, deploymentId, systemPrompt, messages, temperature, maxTokens }) {
+    const abacusMessages = [
+        { is_user: false, text: systemPrompt },
+        ...messages.map(m => ({
+            is_user: m.role === 'user',
+            text: m.content
+        }))
+    ];
+
+    const response = await fetch(`https://abacus.ai/api/v0/getChatResponse`, {
+        method: 'POST',
+        headers: {
+            'x-abacus-api-key': apiKey,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            deploymentId,
+            messages: abacusMessages,
+            temperature,
+            maxTokens
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(`Abacus AI error: ${err.error || response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+        content: data.result?.text || '',
+        model: deploymentId
+    };
+}
+
 export async function generateChatResponse({
     orgId,
     systemPrompt,
@@ -208,6 +253,27 @@ export async function generateChatResponse({
             provider: settings.provider,
             model: settings.model,
             content: result.response?.text() || '',
+        };
+    }
+
+    if (settings.provider === 'abacus') {
+        if (!settings.abacusDeploymentId) {
+            throw new Error('Abacus Deployment ID is missing in settings.');
+        }
+
+        const result = await generateAbacusResponse({
+            apiKey,
+            deploymentId: settings.abacusDeploymentId,
+            systemPrompt,
+            messages,
+            temperature,
+            maxTokens
+        });
+
+        return {
+            provider: 'abacus',
+            model: result.model,
+            content: result.content
         };
     }
 

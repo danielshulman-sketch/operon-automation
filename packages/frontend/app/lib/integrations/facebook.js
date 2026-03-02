@@ -10,6 +10,7 @@ const GRAPH_API = 'https://graph.facebook.com/v21.0';
  * Facebook OAuth returns a user token; Page actions need a page token.
  */
 async function getPageAccessToken(pageId, userAccessToken) {
+    if (!userAccessToken) throw new Error("Facebook Error: Missing user access token.");
     const res = await fetch(`${GRAPH_API}/${pageId}?fields=access_token&access_token=${userAccessToken}`);
     const data = await res.json();
     if (data.error) {
@@ -30,7 +31,8 @@ export const facebookPageIntegration = {
             throw new Error('pageId and message are required');
         }
 
-        const pageToken = await getPageAccessToken(pageId, credentials.access_token);
+        const token = credentials.access_token || credentials.accessToken;
+        const pageToken = await getPageAccessToken(pageId, token);
 
         const res = await fetch(`${GRAPH_API}/${pageId}/feed`, {
             method: 'POST',
@@ -57,8 +59,9 @@ export const facebookPageIntegration = {
             throw new Error('pageId is required');
         }
 
+        const token = credentials.access_token || credentials.accessToken;
         const res = await fetch(
-            `${GRAPH_API}/${pageId}?fields=id,name,about,fan_count,followers_count,category,website,link&access_token=${credentials.access_token}`
+            `${GRAPH_API}/${pageId}?fields=id,name,about,fan_count,followers_count,category,website,link&access_token=${token}`
         );
 
         const data = await res.json();
@@ -77,8 +80,9 @@ export const facebookPageIntegration = {
             throw new Error('pageId is required');
         }
 
+        const token = credentials.access_token || credentials.accessToken;
         const res = await fetch(
-            `${GRAPH_API}/${pageId}/posts?fields=id,message,created_time,story,full_picture&limit=${limit}&access_token=${credentials.access_token}`
+            `${GRAPH_API}/${pageId}/posts?fields=id,message,created_time,story,full_picture&limit=${limit}&access_token=${token}`
         );
 
         const data = await res.json();
@@ -92,12 +96,12 @@ export const facebookPageIntegration = {
      * Get Facebook Page statistics (called after connection)
      */
     async get_stats(credentials) {
-        const { access_token } = credentials;
+        const token = credentials.access_token || credentials.accessToken;
 
         try {
             // List all pages the user manages
             const pagesRes = await fetch(
-                `${GRAPH_API}/me/accounts?fields=id,name,fan_count,followers_count,category&access_token=${access_token}`
+                `${GRAPH_API}/me/accounts?fields=id,name,fan_count,followers_count,category&access_token=${token}`
             );
             const pagesData = await pagesRes.json();
 

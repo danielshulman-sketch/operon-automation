@@ -34,15 +34,28 @@ export default function DataSyncProvider({
                 .then(parseJsonResponse)
                 .then(data => {
                     if (Array.isArray(data)) {
+                        const allowedPlatforms = new Set([
+                            'facebook',
+                            'linkedin',
+                            'instagram',
+                            'threads',
+                            'wordpress',
+                            'wix',
+                            'squarespace',
+                        ]);
                         // Ensure data matches SocialAccount interface
-                        setAccounts(data.map((item: any) => ({
-                            id: item.id,
-                            platform: item.platform,
-                            name: item.name,
-                            status: 'active', // Default to active for now
-                            username: item.username,
-                            accessToken: item.accessToken
-                        })));
+                        setAccounts(
+                            data
+                                .filter((item: any) => allowedPlatforms.has(item.platform))
+                                .map((item: any) => ({
+                                    id: item.id,
+                                    platform: item.platform,
+                                    name: item.name,
+                                    status: 'active', // Default to active for now
+                                    username: item.username,
+                                    accessToken: item.accessToken
+                                }))
+                        );
                     }
                 })
                 .catch(err => console.error("Failed to fetch connections", err));

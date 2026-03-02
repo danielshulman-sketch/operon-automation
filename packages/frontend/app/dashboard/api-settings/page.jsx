@@ -8,9 +8,12 @@ export default function APIKeySettings() {
     const [openaiKey, setOpenaiKey] = useState('');
     const [anthropicKey, setAnthropicKey] = useState('');
     const [googleKey, setGoogleKey] = useState('');
+    const [abacusKey, setAbacusKey] = useState('');
+    const [abacusDeploymentId, setAbacusDeploymentId] = useState('');
     const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
     const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
     const [hasGoogleKey, setHasGoogleKey] = useState(false);
+    const [hasAbacusKey, setHasAbacusKey] = useState(false);
     const [provider, setProvider] = useState('openai');
     const [model, setModel] = useState('');
     const [showKey, setShowKey] = useState(false);
@@ -33,8 +36,10 @@ export default function APIKeySettings() {
                 setHasOpenAIKey(Boolean(data.settings?.hasOpenAIKey));
                 setHasAnthropicKey(Boolean(data.settings?.hasAnthropicKey));
                 setHasGoogleKey(Boolean(data.settings?.hasGoogleKey));
+                setHasAbacusKey(Boolean(data.settings?.hasAbacusKey));
                 setProvider(data.settings?.provider || 'openai');
                 setModel(data.settings?.model || '');
+                setAbacusDeploymentId(data.settings?.abacusDeploymentId || '');
             }
         } catch (error) {
             console.error('Failed to check API key:', error);
@@ -60,6 +65,8 @@ export default function APIKeySettings() {
                     openaiApiKey: openaiKey,
                     anthropicApiKey: anthropicKey,
                     googleApiKey: googleKey,
+                    abacusApiKey: abacusKey,
+                    abacusDeploymentId: abacusDeploymentId,
                 }),
             });
 
@@ -70,9 +77,11 @@ export default function APIKeySettings() {
                 setHasOpenAIKey(Boolean(openaiKey) || hasOpenAIKey);
                 setHasAnthropicKey(Boolean(anthropicKey) || hasAnthropicKey);
                 setHasGoogleKey(Boolean(googleKey) || hasGoogleKey);
+                setHasAbacusKey(Boolean(abacusKey) || hasAbacusKey);
                 setOpenaiKey('');
                 setAnthropicKey('');
                 setGoogleKey('');
+                setAbacusKey('');
                 setShowKey(false);
             } else {
                 setMessage({ type: 'error', text: data.error || 'Failed to save API key' });
@@ -101,6 +110,7 @@ export default function APIKeySettings() {
                 setHasOpenAIKey(false);
                 setHasAnthropicKey(false);
                 setHasGoogleKey(false);
+                setHasAbacusKey(false);
             } else {
                 setMessage({ type: 'error', text: 'Failed to delete API keys' });
             }
@@ -251,6 +261,7 @@ export default function APIKeySettings() {
                             <option value="openai">OpenAI</option>
                             <option value="anthropic">Anthropic (Claude)</option>
                             <option value="google">Google (Gemini)</option>
+                            <option value="abacus">Abacus AI</option>
                         </select>
                     </div>
 
@@ -318,10 +329,36 @@ export default function APIKeySettings() {
                         />
                     </div>
 
+                    <div>
+                        <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
+                            Abacus AI API Key
+                        </label>
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            value={abacusKey}
+                            onChange={(e) => setAbacusKey(e.target.value)}
+                            placeholder="abacus-api-..."
+                            className="w-full px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-plus-jakarta font-medium text-black dark:text-white mb-2">
+                            Abacus AI Deployment ID
+                        </label>
+                        <input
+                            type="text"
+                            value={abacusDeploymentId}
+                            onChange={(e) => setAbacusDeploymentId(e.target.value)}
+                            placeholder="1234abcd5678efgh"
+                            className="w-full px-4 py-3 rounded-xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#0A0A0A] text-black dark:text-white font-mono text-sm focus:outline-none focus:border-black dark:focus:border-white transition-colors"
+                        />
+                    </div>
+
                     {message && (
                         <div className={`p-3 rounded-lg ${message.type === 'success'
-                                ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
-                                : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200'
                             }`}>
                             <p className="text-sm font-inter">{message.text}</p>
                         </div>

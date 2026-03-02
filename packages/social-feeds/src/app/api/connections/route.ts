@@ -3,6 +3,20 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+const normalizeAccessToken = (raw: unknown): string => {
+    if (typeof raw !== 'string') return '';
+    let token = raw.trim();
+    if (
+        (token.startsWith('"') && token.endsWith('"')) ||
+        (token.startsWith("'") && token.endsWith("'"))
+    ) {
+        token = token.slice(1, -1).trim();
+    }
+    return token;
+};
+
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
@@ -45,21 +59,32 @@ export async function POST(req: Request) {
         const body = await req.json();
         console.log("Request body:", body);
         const { platform, name, accessToken, ...other } = body;
+        const normalizedAccessToken = normalizeAccessToken(accessToken);
 
-        if (!platform || !name || !accessToken) {
-            console.log("Missing fields:", { platform, name, accessToken });
+        if (!platform || !name || !normalizedAccessToken) {
+            console.log("Missing fields:", { platform, name, accessToken: !!normalizedAccessToken });
             return new NextResponse("Missing fields", { status: 400 });
         }
 
         // --- STRICT INSTAGRAM TOKEN VALIDATION ---
         // Prevent users from manually pasting their IG Business Account ID instead of a Page Access Token
         if (platform === 'instagram') {
-            if (typeof accessToken !== 'string' || accessToken.length < 50 || /^\d+$/.test(accessToken)) {
-                console.log("Rejected invalid Instagram token format:", accessToken.substring(0, 20));
+            if (normalizedAccessToken.length < 50 || /^\d+$/.test(normalizedAccessToken)) {
+                console.log("Rejected invalid Instagram token format:", normalizedAccessToken.substring(0, 20));
                 return new NextResponse(
                     JSON.stringify({
                         error: "Invalid token format. Do not paste your Instagram User ID here. " +
                             "Please close this and use the 'Connect with Facebook' button to get a proper Page Access Token."
+                    }),
+                    { status: 400, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+
+            // IG publishing requires the IG Business Account ID (stored in `username` in this app).
+            if (typeof other.username !== 'string' || !/^\d+$/.test(other.username)) {
+                return new NextResponse(
+                    JSON.stringify({
+                        error: "Missing Instagram Business Account ID. Please reconnect using 'Connect with Facebook' so the linked Instagram account is selected automatically."
                     }),
                     { status: 400, headers: { 'Content-Type': 'application/json' } }
                 );
@@ -72,7 +97,7 @@ export async function POST(req: Request) {
                 userId: session.user.id,
                 provider: platform,
                 name: name,
-                credentials: JSON.stringify({ accessToken, ...other })
+                credentials: JSON.stringify({ accessToken: normalizedAccessToken, ...other })
             }
         });
         console.log("Connection created:", connection.id);
