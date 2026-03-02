@@ -37,10 +37,25 @@ export default function SettingsPage() {
     const [showLinkedinSecret, setShowLinkedinSecret] = useState(false);
     const [isSavingLinkedin, setIsSavingLinkedin] = useState(false);
     const [googleApiKey, setGoogleApiKey] = useState('');
-    const [hasGoogleApiKey, setHasGoogleApiKey] = useState(false);
     const [googleApiKeyPreview, setGoogleApiKeyPreview] = useState('');
     const [showGoogleKey, setShowGoogleKey] = useState(false);
     const [isSavingGoogleKey, setIsSavingGoogleKey] = useState(false);
+
+    // OpenRouter specific state
+    const [openrouterApiKey, setOpenrouterApiKey] = useState('');
+    const [hasOpenrouterApiKey, setHasOpenrouterApiKey] = useState(false);
+    const [openrouterApiKeyPreview, setOpenrouterApiKeyPreview] = useState('');
+    const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
+    const [isSavingOpenrouterKey, setIsSavingOpenrouterKey] = useState(false);
+
+    // Facebook specific state
+    const [hasGoogleApiKey, setHasGoogleApiKey] = useState(false);
+    const [facebookAppId, setFacebookAppId] = useState('');
+    const [facebookAppSecret, setFacebookAppSecret] = useState('');
+    const [hasFacebookAppCredentials, setHasFacebookAppCredentials] = useState(false);
+    const [facebookAppIdPreview, setFacebookAppIdPreview] = useState('');
+    const [showFacebookAppSecret, setShowFacebookAppSecret] = useState(false);
+    const [isSavingFacebookApp, setIsSavingFacebookApp] = useState(false);
 
     useEffect(() => {
         fetch('/api/user/settings')
@@ -59,6 +74,14 @@ export default function SettingsPage() {
                 if (data.hasGoogleApiKey) {
                     setHasGoogleApiKey(true);
                     setGoogleApiKeyPreview(data.googleApiKeyPreview || '');
+                }
+                if (data.hasOpenrouterKey) {
+                    setHasOpenrouterApiKey(true);
+                    setOpenrouterApiKeyPreview(data.openrouterKeyPreview || '');
+                }
+                if (data.hasFacebookAppCredentials) {
+                    setHasFacebookAppCredentials(true);
+                    setFacebookAppIdPreview(data.facebookAppId || '');
                 }
                 setIsLoading(false);
             })
@@ -214,6 +237,78 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSaveFacebookApp = async () => {
+        if (!facebookAppId.trim() || !facebookAppSecret.trim()) {
+            toast.error('Please enter both App ID and App Secret');
+            return;
+        }
+        setIsSavingFacebookApp(true);
+        try {
+            const res = await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ facebookAppId: facebookAppId.trim(), facebookAppSecret: facebookAppSecret.trim() }),
+            });
+            if (!res.ok) throw new Error();
+            setHasFacebookAppCredentials(true);
+            setFacebookAppIdPreview(facebookAppId.trim());
+            setFacebookAppId('');
+            setFacebookAppSecret('');
+            toast.success('Facebook credentials saved! Go to Connections to connect your account.');
+        } catch {
+            toast.error('Failed to save Facebook credentials');
+        } finally {
+            setIsSavingFacebookApp(false);
+        }
+    };
+
+    const handleRemoveFacebookApp = async () => {
+        setIsSavingFacebookApp(true);
+        try {
+            const res = await fetch('/api/user/settings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ facebookAppId: null, facebookAppSecret: null }),
+            });
+            if (!res.ok) throw new Error();
+            setHasFacebookAppCredentials(false);
+            setFacebookAppIdPreview('');
+            toast.success('Facebook credentials removed');
+        } catch {
+            toast.error('Failed to remove Facebook credentials');
+        } finally {
+            setIsSavingFacebookApp(false);
+        }
+    };
+
+    const handleSaveOpenrouterKey = async () => {
+        // Implementation for openrouter key save
+        if (!openrouterApiKey.trim()) {
+            toast.error('Please enter an OpenRouter API key');
+            return;
+        }
+        setIsSavingOpenrouterKey(true);
+        // Note: Currently backend doesn't persist this, so just update UI for now a placeholder
+        setTimeout(() => {
+            setHasOpenrouterApiKey(true);
+            setOpenrouterApiKeyPreview(`sk-or-v1-...${openrouterApiKey.trim().slice(-4)}`);
+            setOpenrouterApiKey('');
+            setIsSavingOpenrouterKey(false);
+            toast.success('OpenRouter API key saved (local placeholder)');
+        }, 500);
+    };
+
+    const handleRemoveOpenrouterKey = async () => {
+        setIsSavingOpenrouterKey(true);
+        setTimeout(() => {
+            setHasOpenrouterApiKey(false);
+            setOpenrouterApiKeyPreview('');
+            setOpenrouterApiKey('');
+            setIsSavingOpenrouterKey(false);
+            toast.success('OpenRouter API key removed');
+        }, 500);
+    };
+
     const handleAddPersona = () => {
         if (newName && newPrompt) {
             addPersona({ id: Date.now().toString(), name: newName, prompt: newPrompt });
@@ -351,6 +446,49 @@ export default function SettingsPage() {
 
                         <Separator />
 
+                        {/* OpenRouter API Key */}
+                        <div className="grid gap-2">
+                            <Label>OpenRouter API Key</Label>
+                            <p className="text-[11px] text-muted-foreground mb-1">
+                                Used for accessing various AI models (like Claude, LLaMA, etc.) via OpenRouter.
+                            </p>
+                            {hasOpenrouterApiKey && (
+                                <div className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                                    <span className="text-sm font-mono text-muted-foreground">{openrouterApiKeyPreview}</span>
+                                    <Button variant="ghost" size="sm" className="ml-auto text-red-500 h-7" onClick={handleRemoveOpenrouterKey} disabled={isSavingOpenrouterKey}>
+                                        <Trash2 className="h-3 w-3 mr-1" /> Remove
+                                    </Button>
+                                </div>
+                            )}
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <Input
+                                        type={showOpenrouterKey ? 'text' : 'password'}
+                                        placeholder={hasOpenrouterApiKey ? 'Enter new key to replace...' : 'sk-or-v1-...'}
+                                        value={openrouterApiKey}
+                                        onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+                                    >
+                                        {showOpenrouterKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                                <Button onClick={handleSaveOpenrouterKey} disabled={isSavingOpenrouterKey || !openrouterApiKey.trim()} size="sm">
+                                    {isSavingOpenrouterKey && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Save Key
+                                </Button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                                Get your API key from <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="underline hover:text-foreground">openrouter.ai/keys</a>.
+                            </p>
+                        </div>
+
+                        <Separator />
+
                         {/* LinkedIn Credentials */}
                         <div className="grid gap-2">
                             <Label>LinkedIn Developer App</Label>
@@ -401,6 +539,61 @@ export default function SettingsPage() {
                             </div>
                             <p className="text-[11px] text-muted-foreground">
                                 Add redirect URL: <code className="text-xs bg-muted px-1 py-0.5 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/auth/linkedin/callback</code>
+                            </p>
+                        </div>
+
+                        <Separator />
+
+                        {/* Facebook App Credentials */}
+                        <div className="grid gap-2">
+                            <Label>Facebook Developer App</Label>
+                            <p className="text-[11px] text-muted-foreground mb-1">
+                                Required to connect to Facebook and Instagram. Create an app at{' '}
+                                <a href="https://developers.facebook.com/" target="_blank" rel="noreferrer" className="underline hover:text-foreground">developers.facebook.com</a>
+                                {' '}and add the Facebook Login product.
+                            </p>
+                            {hasFacebookAppCredentials && (
+                                <div className="flex items-center gap-2 p-2 rounded border bg-muted/30">
+                                    <Badge variant="secondary" className="text-xs">Connected</Badge>
+                                    <span className="text-sm font-mono text-muted-foreground">{facebookAppIdPreview || 'Configured'}</span>
+                                    <Button variant="ghost" size="sm" className="ml-auto text-red-500 h-7" onClick={handleRemoveFacebookApp} disabled={isSavingFacebookApp}>
+                                        <Trash2 className="h-3 w-3 mr-1" /> Remove
+                                    </Button>
+                                </div>
+                            )}
+                            <div className="space-y-2">
+                                <Input
+                                    type="text"
+                                    placeholder="App ID"
+                                    value={facebookAppId}
+                                    onChange={(e) => setFacebookAppId(e.target.value)}
+                                />
+                                <div className="relative">
+                                    <Input
+                                        type={showFacebookAppSecret ? 'text' : 'password'}
+                                        placeholder="App Secret"
+                                        value={facebookAppSecret}
+                                        onChange={(e) => setFacebookAppSecret(e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setShowFacebookAppSecret(!showFacebookAppSecret)}
+                                    >
+                                        {showFacebookAppSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                                <Button
+                                    onClick={handleSaveFacebookApp}
+                                    disabled={isSavingFacebookApp || !facebookAppId.trim() || !facebookAppSecret.trim()}
+                                    size="sm"
+                                >
+                                    {isSavingFacebookApp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Save Facebook Credentials
+                                </Button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                                Add Valid OAuth Redirect URI: <code className="text-xs bg-muted px-1 py-0.5 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/auth/facebook/callback</code>
                             </p>
                         </div>
                     </CardContent>

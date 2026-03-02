@@ -46,7 +46,7 @@ export const NodeConfigPanel = () => {
 
     const findPreviousNode = () => {
         if (!selectedNode) return null;
-        const incomingEdge = edges.find(e => e.target === selectedNode.id);
+        const incomingEdge = edges.find(e => e.target === selectedNode?.id);
         if (!incomingEdge) return null;
         return nodes.find(n => n.id === incomingEdge.source) || null;
     };
@@ -71,7 +71,7 @@ export const NodeConfigPanel = () => {
         }
 
         setNodes(nodes.map(n => {
-            if (n.id !== selectedNode.id) return n;
+            if (n.id !== selectedNode?.id) return n;
             if (mode === 'publisher') {
                 return {
                     ...n,
@@ -111,16 +111,16 @@ export const NodeConfigPanel = () => {
 
         const isSourceGoogleSheets =
             (selectedNode.type === 'ai-generation' || selectedNode.type === 'blog-creation') &&
-            (selectedNode.data.contentSource as string) === 'google-sheets';
+            (selectedNode?.data.contentSource as string) === 'google-sheets';
         const isPublisherGoogleSheets = selectedNode.type === 'google-sheets-publisher';
 
         if (!isSourceGoogleSheets && !isPublisherGoogleSheets) return;
 
         if (isSourceGoogleSheets) {
-            const hasAny = !!(selectedNode.data.sheetId || selectedNode.data.sheetTab || selectedNode.data.sheetColumn);
+            const hasAny = !!(selectedNode?.data.sheetId || selectedNode?.data.sheetTab || selectedNode?.data.sheetColumn);
             if (hasAny) return;
             if (!inferredSheetId && !inferredSheetTab && !inferredContentCol) return;
-            setNodes(nodes.map(n => n.id === selectedNode.id
+            setNodes(nodes.map(n => n.id === selectedNode?.id
                 ? {
                     ...n,
                     data: {
@@ -134,10 +134,10 @@ export const NodeConfigPanel = () => {
             return;
         }
 
-        const hasAnyPublisher = !!(selectedNode.data.sheetId || selectedNode.data.sheetTab || selectedNode.data.contentColumn || selectedNode.data.imageColumn);
+        const hasAnyPublisher = !!(selectedNode?.data.sheetId || selectedNode?.data.sheetTab || selectedNode?.data.contentColumn || selectedNode?.data.imageColumn);
         if (hasAnyPublisher) return;
         if (!inferredSheetId && !inferredSheetTab && !inferredContentCol && !inferredImageCol) return;
-        setNodes(nodes.map(n => n.id === selectedNode.id
+        setNodes(nodes.map(n => n.id === selectedNode?.id
             ? {
                 ...n,
                 data: {
@@ -159,9 +159,9 @@ export const NodeConfigPanel = () => {
         setTestError(null);
         try {
             // Check if we need to substitute variables
-            let finalTaskPrompt = (selectedNode.data.taskPrompt as string) || '';
-            if (selectedNode.type === 'ai-generation' && selectedNode.data.testInput) {
-                finalTaskPrompt = finalTaskPrompt.replace('{{content}}', selectedNode.data.testInput as string);
+            let finalTaskPrompt = (selectedNode?.data.taskPrompt as string) || '';
+            if (selectedNode.type === 'ai-generation' && selectedNode?.data.testInput) {
+                finalTaskPrompt = finalTaskPrompt.replace('{{content}}', selectedNode?.data.testInput as string);
             }
 
             // Determine default provider based on node type
@@ -172,10 +172,10 @@ export const NodeConfigPanel = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     nodeType: selectedNode.type,
-                    masterPrompt: selectedNode.data.masterPrompt || '',
+                    masterPrompt: selectedNode?.data.masterPrompt || '',
                     taskPrompt: finalTaskPrompt,
-                    provider: selectedNode.data.provider || defaultProvider,
-                    prompt: selectedNode.data.prompt || '',
+                    provider: selectedNode?.data.provider || defaultProvider,
+                    prompt: selectedNode?.data.prompt || '',
                 }),
             });
             const data = await res.json();
@@ -194,10 +194,10 @@ export const NodeConfigPanel = () => {
     const handleDeleteNode = () => {
         if (!selectedNode) return;
         // Remove edges connected to this node
-        const newEdges = edges.filter(e => e.source !== selectedNode.id && e.target !== selectedNode.id);
+        const newEdges = edges.filter(e => e.source !== selectedNode?.id && e.target !== selectedNode?.id);
         setEdges(newEdges);
         // Remove the node itself
-        const newNodes = nodes.filter(n => n.id !== selectedNode.id);
+        const newNodes = nodes.filter(n => n.id !== selectedNode?.id);
         setNodes(newNodes);
         // Close the panel
         toggleConfigPanel(false);
@@ -206,13 +206,14 @@ export const NodeConfigPanel = () => {
     const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newLabel = e.target.value;
         setNodes(nodes.map(n =>
-            n.id === selectedNode.id
+            n.id === selectedNode?.id
                 ? { ...n, data: { ...n.data, label: newLabel } }
                 : n
         ));
     };
 
     const renderSpecificConfig = () => {
+        if (!selectedNode) return null;
         switch (selectedNode.type) {
             case 'manual-trigger':
                 return (
@@ -222,10 +223,10 @@ export const NodeConfigPanel = () => {
                             <textarea
                                 className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Enter text to simulate a trigger..."
-                                value={(selectedNode.data.testContent as string) || ''}
+                                value={(selectedNode?.data.testContent as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, testContent: e.target.value } }
                                             : n
                                     ));
@@ -236,10 +237,10 @@ export const NodeConfigPanel = () => {
                             <Label>Test Image URL</Label>
                             <Input
                                 placeholder="https://example.com/image.jpg"
-                                value={(selectedNode.data.testImageUrl as string) || ''}
+                                value={(selectedNode?.data.testImageUrl as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, testImageUrl: e.target.value } }
                                             : n
                                     ));
@@ -295,7 +296,7 @@ export const NodeConfigPanel = () => {
                                 onChange={(e) => {
                                     if (!selectedNode) return;
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, url: e.target.value } }
                                             : n
                                     ));
@@ -315,13 +316,13 @@ export const NodeConfigPanel = () => {
                             <Label>Spreadsheet ID / URL</Label>
                             <Input
                                 placeholder="https://docs.google.com/spreadsheets/d/..."
-                                value={(selectedNode.data.sheetId as string) || ''}
+                                value={(selectedNode?.data.sheetId as string) || ''}
                                 onChange={(e) => {
-                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                    setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
                                 }}
                                 onBlur={() => {
                                     // Auto-fetch sheets when user leaves the URL field
-                                    let id = selectedNode.data.sheetId as string || '';
+                                    let id = selectedNode?.data.sheetId as string || '';
                                     const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
                                     if (match) id = match[1];
                                     if (id) fetchSheets(id);
@@ -331,9 +332,9 @@ export const NodeConfigPanel = () => {
                                 variant="secondary"
                                 size="sm"
                                 className="w-full"
-                                disabled={isFetchingSheets || !(selectedNode.data.sheetId as string)}
+                                disabled={isFetchingSheets || !(selectedNode?.data.sheetId as string)}
                                 onClick={() => {
-                                    let id = selectedNode.data.sheetId as string || '';
+                                    let id = selectedNode?.data.sheetId as string || '';
                                     const match = id.match(/\/d\/([a-zA-Z0-9-_]+)/);
                                     if (match) id = match[1];
                                     fetchSheets(id);
@@ -346,9 +347,9 @@ export const NodeConfigPanel = () => {
                             <Label>Worksheet Name</Label>
                             {availableSheets.length > 0 ? (
                                 <Select
-                                    value={(selectedNode.data.sheetName as string) || ''}
+                                    value={(selectedNode?.data.sheetName as string) || ''}
                                     onValueChange={(val) => {
-                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: val } } : n));
+                                        setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetName: val } } : n));
                                     }}
                                 >
                                     <SelectTrigger><SelectValue placeholder="Select a sheet tab..." /></SelectTrigger>
@@ -361,9 +362,9 @@ export const NodeConfigPanel = () => {
                             ) : (
                                 <Input
                                     placeholder="Sheet1"
-                                    value={(selectedNode.data.sheetName as string) || ''}
+                                    value={(selectedNode?.data.sheetName as string) || ''}
                                     onChange={(e) => {
-                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetName: e.target.value } } : n));
+                                        setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetName: e.target.value } } : n));
                                     }}
                                 />
                             )}
@@ -395,7 +396,7 @@ export const NodeConfigPanel = () => {
                             <Label>Provider</Label>
                             <Select defaultValue="openai" onValueChange={(val) => {
                                 setNodes(nodes.map(n =>
-                                    n.id === selectedNode.id
+                                    n.id === selectedNode?.id
                                         ? { ...n, data: { ...n.data, provider: val } }
                                         : n
                                 ));
@@ -417,7 +418,7 @@ export const NodeConfigPanel = () => {
                                 const persona = useWorkflowStore.getState().personas.find(p => p.id === val);
                                 if (persona) {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, masterPrompt: persona.prompt } }
                                             : n
                                     ));
@@ -434,10 +435,10 @@ export const NodeConfigPanel = () => {
                             <textarea
                                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-2"
                                 placeholder="You are a professional social media manager. Tone: Witty and engaging."
-                                value={(selectedNode.data.masterPrompt as string) || ''}
+                                value={(selectedNode?.data.masterPrompt as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, masterPrompt: e.target.value } }
                                             : n
                                     ));
@@ -448,10 +449,10 @@ export const NodeConfigPanel = () => {
                         <div className="grid gap-2">
                             <Label>Content Source</Label>
                             <Select
-                                value={(selectedNode.data.contentSource as string) || 'upstream'}
+                                value={(selectedNode?.data.contentSource as string) || 'upstream'}
                                 onValueChange={(val) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, contentSource: val } }
                                             : n
                                     ));
@@ -465,13 +466,13 @@ export const NodeConfigPanel = () => {
                                 </SelectContent>
                             </Select>
 
-                            {(selectedNode.data.contentSource === 'rss') && (
+                            {(selectedNode?.data.contentSource === 'rss') && (
                                 <Select
-                                    value={(selectedNode.data.rssFeedId as string) || ''}
+                                    value={(selectedNode?.data.rssFeedId as string) || ''}
                                     onValueChange={(val) => {
                                         const feed = useWorkflowStore.getState().rssFeeds.find(f => f.id === val);
                                         setNodes(nodes.map(n =>
-                                            n.id === selectedNode.id
+                                            n.id === selectedNode?.id
                                                 ? { ...n, data: { ...n.data, rssFeedId: val, rssUrl: feed?.url } }
                                                 : n
                                         ));
@@ -486,7 +487,7 @@ export const NodeConfigPanel = () => {
                                 </Select>
                             )}
 
-                            {(selectedNode.data.contentSource === 'google-sheets') && (
+                            {(selectedNode?.data.contentSource === 'google-sheets') && (
                                 <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
                                     <Button
                                         variant="secondary"
@@ -500,9 +501,9 @@ export const NodeConfigPanel = () => {
                                         <Label className="text-xs">Spreadsheet ID</Label>
                                         <Input
                                             className="h-8 text-xs"
-                                            value={(selectedNode.data.sheetId as string) || ''}
+                                            value={(selectedNode?.data.sheetId as string) || ''}
                                             onChange={(e) => {
-                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                                setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
                                             }}
                                             placeholder={useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || "ID..."}
                                         />
@@ -513,9 +514,9 @@ export const NodeConfigPanel = () => {
                                             <div className="flex gap-1">
                                                 {availableSheets.length > 0 ? (
                                                     <Select
-                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        value={(selectedNode?.data.sheetTab as string) || ''}
                                                         onValueChange={(val) => {
-                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
+                                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
                                                         }}
                                                     >
                                                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Tab" /></SelectTrigger>
@@ -528,9 +529,9 @@ export const NodeConfigPanel = () => {
                                                 ) : (
                                                     <Input
                                                         className="h-8 text-xs"
-                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        value={(selectedNode?.data.sheetTab as string) || ''}
                                                         onChange={(e) => {
-                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
                                                         }}
                                                         placeholder="Sheet1"
                                                     />
@@ -540,7 +541,7 @@ export const NodeConfigPanel = () => {
                                                     size="icon"
                                                     className="h-8 w-8 shrink-0"
                                                     disabled={isFetchingSheets}
-                                                    onClick={() => fetchSheets(selectedNode.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
+                                                    onClick={() => fetchSheets(selectedNode?.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
                                                 >
                                                     <Plus className={`h-3 w-3 ${isFetchingSheets ? 'animate-spin' : ''}`} />
                                                 </Button>
@@ -550,9 +551,9 @@ export const NodeConfigPanel = () => {
                                             <Label className="text-xs">Content Col</Label>
                                             <Input
                                                 className="h-8 text-xs"
-                                                value={(selectedNode.data.sheetColumn as string) || ''}
+                                                value={(selectedNode?.data.sheetColumn as string) || ''}
                                                 onChange={(e) => {
-                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetColumn: e.target.value } } : n));
+                                                    setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetColumn: e.target.value } } : n));
                                                 }}
                                                 placeholder="A"
                                             />
@@ -570,10 +571,10 @@ export const NodeConfigPanel = () => {
                             <div className="text-xs text-muted-foreground mb-1">Use {"{{content}}"} to insert source text.</div>
                             <textarea className="flex h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Summarize this article for LinkedIn: {{content}}"
-                                value={(selectedNode.data.taskPrompt as string) || ''}
+                                value={(selectedNode?.data.taskPrompt as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, taskPrompt: e.target.value } }
                                             : n
                                     ));
@@ -587,10 +588,10 @@ export const NodeConfigPanel = () => {
                             <textarea
                                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Paste article text or simulation content here..."
-                                value={(selectedNode.data.testInput as string) || ''}
+                                value={(selectedNode?.data.testInput as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, testInput: e.target.value } }
                                             : n
                                     ));
@@ -606,10 +607,10 @@ export const NodeConfigPanel = () => {
                         <div className="grid gap-2">
                             <Label>Content Source</Label>
                             <Select
-                                value={((selectedNode.data.contentSource as string) === 'google-sheets' ? 'upstream' : ((selectedNode.data.contentSource as string) || 'upstream'))}
+                                value={((selectedNode?.data.contentSource as string) === 'google-sheets' ? 'upstream' : ((selectedNode?.data.contentSource as string) || 'upstream'))}
                                 onValueChange={(val) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, contentSource: val } }
                                             : n
                                     ));
@@ -622,13 +623,13 @@ export const NodeConfigPanel = () => {
                                 </SelectContent>
                             </Select>
 
-                            {(selectedNode.data.contentSource === 'rss') && (
+                            {(selectedNode?.data.contentSource === 'rss') && (
                                 <Select
-                                    value={(selectedNode.data.rssFeedId as string) || ''}
+                                    value={(selectedNode?.data.rssFeedId as string) || ''}
                                     onValueChange={(val) => {
                                         const feed = useWorkflowStore.getState().rssFeeds.find(f => f.id === val);
                                         setNodes(nodes.map(n =>
-                                            n.id === selectedNode.id
+                                            n.id === selectedNode?.id
                                                 ? { ...n, data: { ...n.data, rssFeedId: val, rssUrl: feed?.url } }
                                                 : n
                                         ));
@@ -643,7 +644,7 @@ export const NodeConfigPanel = () => {
                                 </Select>
                             )}
 
-                            {false && (selectedNode.data.contentSource === 'google-sheets') && (
+                            {false && (selectedNode?.data.contentSource === 'google-sheets') && (
                                 <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
                                     <Button
                                         variant="secondary"
@@ -657,9 +658,9 @@ export const NodeConfigPanel = () => {
                                         <Label className="text-xs">Spreadsheet ID</Label>
                                         <Input
                                             className="h-8 text-xs"
-                                            value={(selectedNode.data.sheetId as string) || ''}
+                                            value={(selectedNode?.data.sheetId as string) || ''}
                                             onChange={(e) => {
-                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                                setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
                                             }}
                                             placeholder={useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || "ID..."}
                                         />
@@ -670,9 +671,9 @@ export const NodeConfigPanel = () => {
                                             <div className="flex gap-1">
                                                 {availableSheets.length > 0 ? (
                                                     <Select
-                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        value={(selectedNode?.data.sheetTab as string) || ''}
                                                         onValueChange={(val) => {
-                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
+                                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
                                                         }}
                                                     >
                                                         <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Tab" /></SelectTrigger>
@@ -685,9 +686,9 @@ export const NodeConfigPanel = () => {
                                                 ) : (
                                                     <Input
                                                         className="h-8 text-xs"
-                                                        value={(selectedNode.data.sheetTab as string) || ''}
+                                                        value={(selectedNode?.data.sheetTab as string) || ''}
                                                         onChange={(e) => {
-                                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
                                                         }}
                                                         placeholder="Sheet1"
                                                     />
@@ -697,7 +698,7 @@ export const NodeConfigPanel = () => {
                                                     size="icon"
                                                     className="h-8 w-8 shrink-0"
                                                     disabled={isFetchingSheets}
-                                                    onClick={() => fetchSheets(selectedNode.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
+                                                    onClick={() => fetchSheets(selectedNode?.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
                                                 >
                                                     <Plus className={`h-3 w-3 ${isFetchingSheets ? 'animate-spin' : ''}`} />
                                                 </Button>
@@ -707,9 +708,9 @@ export const NodeConfigPanel = () => {
                                             <Label className="text-xs">Content Col</Label>
                                             <Input
                                                 className="h-8 text-xs"
-                                                value={(selectedNode.data.sheetColumn as string) || ''}
+                                                value={(selectedNode?.data.sheetColumn as string) || ''}
                                                 onChange={(e) => {
-                                                    setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetColumn: e.target.value } } : n));
+                                                    setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetColumn: e.target.value } } : n));
                                                 }}
                                                 placeholder="A"
                                             />
@@ -724,10 +725,10 @@ export const NodeConfigPanel = () => {
                             <textarea
                                 className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Write a detailed blog post with intro, key points, and conclusion. Use a clear headline and subheadings."
-                                value={(selectedNode.data.blogPrompt as string) || ''}
+                                value={(selectedNode?.data.blogPrompt as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, blogPrompt: e.target.value } }
                                             : n
                                     ));
@@ -746,10 +747,10 @@ export const NodeConfigPanel = () => {
                         <div className="grid gap-2">
                             <Label>Image Provider</Label>
                             <Select
-                                value={(selectedNode.data.provider as string) || 'dalle-3'}
+                                value={(selectedNode?.data.provider as string) || 'dalle-3'}
                                 onValueChange={(val) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, provider: val } }
                                             : n
                                     ));
@@ -768,10 +769,10 @@ export const NodeConfigPanel = () => {
                             <textarea
                                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 placeholder="Describe the image you want to generate..."
-                                value={(selectedNode.data.prompt as string) || ''}
+                                value={(selectedNode?.data.prompt as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, prompt: e.target.value } }
                                             : n
                                     ));
@@ -803,7 +804,7 @@ export const NodeConfigPanel = () => {
                 if (selectedNode.type === 'google-sheets-publisher') {
                     return (
                         <div className="space-y-4">
-                        <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
+                            <div className="space-y-2 border-l-2 border-muted pl-2 mt-2">
                                 <Button
                                     variant="secondary"
                                     size="sm"
@@ -816,9 +817,9 @@ export const NodeConfigPanel = () => {
                                     <Label className="text-xs">Spreadsheet ID</Label>
                                     <Input
                                         className="h-8 text-xs"
-                                        value={(selectedNode.data.sheetId as string) || ''}
+                                        value={(selectedNode?.data.sheetId as string) || ''}
                                         onChange={(e) => {
-                                            setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
+                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetId: e.target.value } } : n));
                                         }}
                                         placeholder={useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || "ID..."}
                                     />
@@ -829,9 +830,9 @@ export const NodeConfigPanel = () => {
                                         <div className="flex gap-1">
                                             {availableSheets.length > 0 ? (
                                                 <Select
-                                                    value={(selectedNode.data.sheetTab as string) || ''}
+                                                    value={(selectedNode?.data.sheetTab as string) || ''}
                                                     onValueChange={(val) => {
-                                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
+                                                        setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetTab: val } } : n));
                                                     }}
                                                 >
                                                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select Tab" /></SelectTrigger>
@@ -844,9 +845,9 @@ export const NodeConfigPanel = () => {
                                             ) : (
                                                 <Input
                                                     className="h-8 text-xs"
-                                                    value={(selectedNode.data.sheetTab as string) || ''}
+                                                    value={(selectedNode?.data.sheetTab as string) || ''}
                                                     onChange={(e) => {
-                                                        setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
+                                                        setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, sheetTab: e.target.value } } : n));
                                                     }}
                                                     placeholder="Sheet1"
                                                 />
@@ -856,7 +857,7 @@ export const NodeConfigPanel = () => {
                                                 size="icon"
                                                 className="h-8 w-8 shrink-0"
                                                 disabled={isFetchingSheets}
-                                                onClick={() => fetchSheets(selectedNode.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
+                                                onClick={() => fetchSheets(selectedNode?.data.sheetId as string || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId || '')}
                                             >
                                                 <Plus className={`h-3 w-3 ${isFetchingSheets ? 'animate-spin' : ''}`} />
                                             </Button>
@@ -866,9 +867,9 @@ export const NodeConfigPanel = () => {
                                         <Label className="text-xs">Content Column</Label>
                                         <Input
                                             className="h-8 text-xs"
-                                            value={(selectedNode.data.contentColumn as string) || ''}
+                                            value={(selectedNode?.data.contentColumn as string) || ''}
                                             onChange={(e) => {
-                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, contentColumn: e.target.value } } : n));
+                                                setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, contentColumn: e.target.value } } : n));
                                             }}
                                             placeholder="A"
                                         />
@@ -877,9 +878,9 @@ export const NodeConfigPanel = () => {
                                         <Label className="text-xs">Image Column</Label>
                                         <Input
                                             className="h-8 text-xs"
-                                            value={(selectedNode.data.imageColumn as string) || ''}
+                                            value={(selectedNode?.data.imageColumn as string) || ''}
                                             onChange={(e) => {
-                                                setNodes(nodes.map(n => n.id === selectedNode.id ? { ...n, data: { ...n.data, imageColumn: e.target.value } } : n));
+                                                setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, imageColumn: e.target.value } } : n));
                                             }}
                                             placeholder="B (Optional)"
                                         />
@@ -898,11 +899,11 @@ export const NodeConfigPanel = () => {
                             <Label>Select Account / Page</Label>
                             <Select onValueChange={(val) => {
                                 setNodes(nodes.map(n =>
-                                    n.id === selectedNode.id
+                                    n.id === selectedNode?.id
                                         ? { ...n, data: { ...n.data, accountId: val } }
                                         : n
                                 ));
-                            }} defaultValue={(selectedNode.data.accountId as string) || ''}>
+                            }} defaultValue={(selectedNode?.data.accountId as string) || ''}>
                                 <SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger>
                                 <SelectContent>
                                     {availableAccounts.map(account => (
@@ -918,11 +919,11 @@ export const NodeConfigPanel = () => {
                                 <Label>Post Type</Label>
                                 <Select onValueChange={(val) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, postType: val } }
                                             : n
                                     ));
-                                }} defaultValue={(selectedNode.data.postType as string) || 'image'}>
+                                }} defaultValue={(selectedNode?.data.postType as string) || 'image'}>
                                     <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="image">Image / Video (Normal)</SelectItem>
@@ -942,10 +943,10 @@ export const NodeConfigPanel = () => {
                                             ? "https://yoursite.com"
                                             : "https://api.example.com/publish"
                                     }
-                                    value={(selectedNode.data.siteUrl as string) || ''}
+                                    value={(selectedNode?.data.siteUrl as string) || ''}
                                     onChange={(e) => {
                                         setNodes(nodes.map(n =>
-                                            n.id === selectedNode.id
+                                            n.id === selectedNode?.id
                                                 ? { ...n, data: { ...n.data, siteUrl: e.target.value } }
                                                 : n
                                         ));
@@ -961,10 +962,10 @@ export const NodeConfigPanel = () => {
                             <Label>Image URL (Optional)</Label>
                             <Input
                                 placeholder="https://example.com/image.jpg (or leave empty to use generated image)"
-                                value={(selectedNode.data.imageUrl as string) || ''}
+                                value={(selectedNode?.data.imageUrl as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, imageUrl: e.target.value } }
                                             : n
                                     ));
@@ -979,11 +980,11 @@ export const NodeConfigPanel = () => {
                             <Label>Text Source</Label>
                             <Select onValueChange={(val) => {
                                 setNodes(nodes.map(n =>
-                                    n.id === selectedNode.id
+                                    n.id === selectedNode?.id
                                         ? { ...n, data: { ...n.data, textSource: val } }
                                         : n
                                 ));
-                            }} defaultValue={(selectedNode.data.textSource as string) || 'trigger'}>
+                            }} defaultValue={(selectedNode?.data.textSource as string) || 'trigger'}>
                                 <SelectTrigger><SelectValue placeholder="Select text source" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="trigger">Trigger Text</SelectItem>
@@ -997,11 +998,11 @@ export const NodeConfigPanel = () => {
                             <Label>Image Source</Label>
                             <Select onValueChange={(val) => {
                                 setNodes(nodes.map(n =>
-                                    n.id === selectedNode.id
+                                    n.id === selectedNode?.id
                                         ? { ...n, data: { ...n.data, imageSource: val } }
                                         : n
                                 ));
-                            }} defaultValue={(selectedNode.data.imageSource as string) || 'none'}>
+                            }} defaultValue={(selectedNode?.data.imageSource as string) || 'none'}>
                                 <SelectTrigger><SelectValue placeholder="Select image source" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="none">None (Text Only)</SelectItem>
@@ -1015,10 +1016,10 @@ export const NodeConfigPanel = () => {
                             <Label>Schedule Delay</Label>
                             <Input
                                 placeholder="e.g. 2 hours, 1 day"
-                                value={(selectedNode.data.scheduleTime as string) || ''}
+                                value={(selectedNode?.data.scheduleTime as string) || ''}
                                 onChange={(e) => {
                                     setNodes(nodes.map(n =>
-                                        n.id === selectedNode.id
+                                        n.id === selectedNode?.id
                                             ? { ...n, data: { ...n.data, scheduleTime: e.target.value } }
                                             : n
                                     ));
@@ -1038,9 +1039,9 @@ export const NodeConfigPanel = () => {
         <Sheet open={isConfigPanelOpen} onOpenChange={toggleConfigPanel}>
             <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
                 <SheetHeader className="mb-6">
-                    <SheetTitle>Configure {selectedNode.data.label as string}</SheetTitle>
+                    <SheetTitle>Configure {selectedNode?.data.label as string}</SheetTitle>
                     <SheetDescription>
-                        ID: {selectedNode.id} • Type: {selectedNode.type}
+                        ID: {selectedNode?.id} • Type: {selectedNode.type}
                     </SheetDescription>
                 </SheetHeader>
 
@@ -1055,7 +1056,7 @@ export const NodeConfigPanel = () => {
                             <Label htmlFor="node-label">Label</Label>
                             <Input
                                 id="node-label"
-                                value={selectedNode.data.label as string}
+                                value={selectedNode?.data.label as string}
                                 onChange={handleLabelChange}
                             />
                         </div>
