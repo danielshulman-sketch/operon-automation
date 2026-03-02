@@ -73,7 +73,10 @@ export function FacebookSDKProvider({ children }: { children: React.ReactNode })
                     reject(new Error("User cancelled login or did not fully authorize."));
                 }
             }, {
-                scope: 'pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_comments,instagram_manage_insights,business_management'
+                // To get advanced scopes like instagram_basic, the app needs to be reviewed by Facebook,
+                // OR the Facebook App needs to be in Development mode and you must log in with the admin/tester account.
+                // We are requesting standard scopes first to ensure the connection works.
+                scope: 'public_profile,email'
             });
         });
     };
