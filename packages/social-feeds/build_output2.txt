@@ -1,0 +1,127 @@
+﻿node.exe : npm warn 
+Unknown project config 
+"node-linker". This 
+will stop working in 
+the next major version 
+of npm.
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (npm warn Unkn   
+ ow...version of np    
+m.:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+ÔÜá `eslint` 
+configuration in 
+next.config.mjs is no 
+longer supported. See 
+more info here: https:/
+/nextjs.org/docs/app/ap
+i-reference/cli/next#ne
+xt-lint-options
+ÔÜá Invalid 
+next.config.mjs 
+options detected: 
+ÔÜá     Unrecognized 
+key(s) in object: 
+'eslint'
+ÔÜá See more info 
+here: https://nextjs.or
+g/docs/messages/invalid
+-next-config
+ÔÜá Warning: Next.js 
+inferred your 
+workspace root, but it 
+may not be correct.
+ We detected multiple 
+lockfiles and selected 
+the directory of C:\Use
+rs\danie\OneDrive\Docum
+ents\app  builds\New 
+folder\pnpm-lock.yaml 
+as the root directory.
+ To silence this 
+warning, set 
+`turbopack.root` in 
+your Next.js config, 
+or consider removing 
+one of the lockfiles 
+if it's not needed.
+   See https://nextjs.o
+rg/docs/app/api-referen
+ce/config/next-config-j
+s/turbopack#root-direct
+ory for more 
+information.
+ Detected additional 
+lockfiles: 
+   * C:\Users\danie\One
+Drive\Documents\app  
+builds\New folder\packa
+ges\social-feeds\pnpm-l
+ock.yaml
+
+Ôû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+ÔÜá The "middleware" 
+file convention is 
+deprecated. Please use 
+"proxy" instead. Learn 
+more: https://nextjs.or
+g/docs/messages/middlew
+are-to-proxy
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 2.5s
+  Skipping validation of types
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/31) ...
+  Generating static pages using 15 workers (7/31) 
+Error occurred 
+prerendering page 
+"/_global-error". Read 
+more: https://nextjs.or
+g/docs/messages/prerend
+er-error
+Error 
+[InvariantError]: 
+Invariant: Expected 
+workUnitAsyncStorage 
+to have a store. This 
+is a bug in Next.js.
+    at L (C:\Users\dani
+e\OneDrive\Documents\ap
+p  builds\New folder\pa
+ckages\social-feeds\.ne
+xt\server\chunks\ssr\[r
+oot-of-the-server]__160
+32bbc._.js:1:95867)
+    at bu (C:\Users\dan
+ie\OneDrive\Documents\a
+pp  builds\New folder\p
+ackages\social-feeds\.n
+ext\server\chunks\ssr\[
+root-of-the-server]__16
+032bbc._.js:4:7733)
+Export encountered an 
+error on 
+/_global-error/page: 
+/_global-error, 
+exiting the build.
+Ô¿» Next.js build 
+worker exited with 
+code: 1 and signal: 
+null

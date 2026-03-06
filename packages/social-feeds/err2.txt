@@ -1,0 +1,13 @@
+src/app/(dashboard)/connections/page.tsx(13,32): error TS2307: Cannot find module '@/components/providers/FacebookSDKProvider' or its corresponding type declarations.
+src/app/(dashboard)/settings/page.tsx(431,117): error TS2552: Cannot find name 'handleRemoveOpenrouterKey'. Did you mean 'handleRemoveGoogleKey'?
+src/app/(dashboard)/settings/page.tsx(452,50): error TS2304: Cannot find name 'handleSaveOpenrouterKey'.
+src/components/workflow/config/NodeConfigPanel.tsx(646,40): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(660,53): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(662,82): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(673,65): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(675,94): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(688,65): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(690,94): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(700,80): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(710,57): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(712,86): error TS18048: 'selectedNode' is possibly 'undefined'.

@@ -1,0 +1,17 @@
+Starting query...
+Found 3 connections total.
+[google] daniel.shulman@gmail.com (ID: 2e99569d-b2fb-424a-af2e-e4a2f3559bca)
+Created: Tue Feb 24 2026 16:18:13 GMT+0000 (Greenwich Mean Time)
+Length: 716
+Value: {"accessToken":"ya29.a0ATkoCc6r-R_0dGQCCb9ApFO4T8FODsJArwd-20pjAZnojvvnURn2YBfWboF0pJLGeSf-HfNBGkC5md0tkAPLgpfETPSAjwuLNajG2PT-e8sYk1V3gauAOmU3DKL-fxBGs3vedPdegyDh-liiwZL9-7JU9dSx4z5xYV_qsVva1v4R3J3DSCZjGauPZRfVL5TsErP10OkaCgYKAXYSARUSFQHGX2MixPwsVXvls-Z5n2gNGfqYUg0206","refreshToken":"1//05Wtf3X8uB3H_CgYIARAAGAUSNwF-L9IrzL7u2buLree4K6c1jf13RiiTCdWKo1ixUFnU4wXZ_GK6MShzg2Sx35hTsvMGxK9e_84","expiresAt":1771963874771,"scope":"https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid","tokenType":"Bearer","email":"daniel.shulman@gmail.com","connectedAt":"2026-02-24T16:18:12.851Z"}
+---
+[linkedin] Daniel Shulman (ID: be241077-f258-4a9f-9611-8e40c449d177)
+Created: Wed Feb 18 2026 10:02:00 GMT+0000 (Greenwich Mean Time)
+Length: 453
+Value: {"accessToken":"AQXYLZTaxMOvqPhwxsp08KLX1vzpKAYtkoeiRvSeRWt5Ei8_bhcLsj9nqbX6K476td-tLOnifWWUVHxCYpRE_N1yta7pvv9Hm7e2NivcOWVKoZSkh7LLnVU-7WWQDJyH0_M4o93pZEaxjIbQjLlKskoQPcukSDIidI4oauOEaRklU2fmljcyvVyV5RTQ7lfXwPIG1IgCt0P9toViAvH4P3CBip5vY2X1boB6lidC66pV2K_cVJ0VAX7ofhOMvB8HEMp7_Q_oflg-0ZqVzwZX4o8HluCYlWQsoplr1-1_HBgfc_I_nXC_qIpHvjdo6SQuk1htv5Ppt1x75DmXwpHyL3vw8nkodQ","expiresIn":5183999,"username":"IxHmBFcL05","connectedAt":"2026-02-18T10:02:00.633Z"}
+---
+[linkedin] daniel.shulman@gmail.com (ID: a0b51752-d1f4-4080-8ba3-3d03fcf12125)
+Created: Tue Feb 17 2026 20:14:14 GMT+0000 (Greenwich Mean Time)
+Length: 51
+Value: {"accessToken":"WPL_AP1.NdXxVqACxESewdt7.yNM+7g=="}
+---

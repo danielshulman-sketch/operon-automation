@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Plus, Trash2 } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 export const NodeConfigPanel = () => {
     const { selectedNode: storedSelectedNode, isConfigPanelOpen, toggleConfigPanel, nodes, setNodes, edges, setEdges } = useWorkflowStore();
@@ -17,6 +18,8 @@ export const NodeConfigPanel = () => {
     const [testError, setTestError] = useState<string | null>(null);
     const [isFetchingSheets, setIsFetchingSheets] = useState(false);
     const [availableSheets, setAvailableSheets] = useState<string[]>([]);
+    const [newScheduleDay, setNewScheduleDay] = useState<string>('');
+    const [newScheduleTime, setNewScheduleTime] = useState<string>('');
 
     const fetchSheets = async (spreadsheetId: string) => {
         if (!spreadsheetId) {
@@ -251,12 +254,13 @@ export const NodeConfigPanel = () => {
                 );
 
             case 'schedule-trigger':
+                const schedules = (selectedNode?.data.schedules as any[]) || [];
                 return (
                     <div className="space-y-4">
                         <div className="grid gap-2">
                             <Label>Add Schedule Time</Label>
                             <div className="flex gap-2">
-                                <Select>
+                                <Select value={newScheduleDay} onValueChange={setNewScheduleDay}>
                                     <SelectTrigger className="w-[110px]"><SelectValue placeholder="Day" /></SelectTrigger>
                                     <SelectContent>
                                         {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
@@ -264,23 +268,59 @@ export const NodeConfigPanel = () => {
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <Input type="time" className="flex-1" />
-                                <Button size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+                                <Input
+                                    type="time"
+                                    className="flex-1"
+                                    value={newScheduleTime}
+                                    onChange={(e) => setNewScheduleTime(e.target.value)}
+                                />
+                                <Button
+                                    size="icon"
+                                    variant="secondary"
+                                    onClick={() => {
+                                        if (!newScheduleDay || !newScheduleTime) {
+                                            toast.error('Please select both a day and a time.');
+                                            return;
+                                        }
+                                        const newSchedule = { id: uuidv4(), day: newScheduleDay, time: newScheduleTime };
+                                        setNodes(nodes.map(n =>
+                                            n.id === selectedNode?.id
+                                                ? { ...n, data: { ...n.data, schedules: [...schedules, newSchedule] } }
+                                                : n
+                                        ));
+                                        setNewScheduleDay('');
+                                        setNewScheduleTime('');
+                                        toast.success('Schedule added');
+                                    }}
+                                ><Plus className="w-4 h-4" /></Button>
                             </div>
                         </div>
 
                         <div className="space-y-2">
                             <Label>Active Schedules</Label>
-                            <div className="rounded-md border p-2 space-y-2">
-                                <div className="flex items-center justify-between text-sm bg-muted/50 p-2 rounded">
-                                    <span>Mon, 09:00 AM</span>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6"><Trash2 className="w-3 h-3 text-red-500" /></Button>
+                            {schedules.length === 0 ? (
+                                <div className="text-sm text-muted-foreground p-2 text-center rounded bg-muted/20 border-dashed border">No schedules active</div>
+                            ) : (
+                                <div className="rounded-md border p-2 space-y-2">
+                                    {schedules.map((schedule: any) => (
+                                        <div key={schedule.id} className="flex items-center justify-between text-sm bg-muted/50 p-2 rounded">
+                                            <span>{schedule.day}, {schedule.time}</span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6"
+                                                onClick={() => {
+                                                    setNodes(nodes.map(n =>
+                                                        n.id === selectedNode?.id
+                                                            ? { ...n, data: { ...n.data, schedules: schedules.filter(s => s.id !== schedule.id) } }
+                                                            : n
+                                                    ));
+                                                }}
+                                            ><Trash2 className="w-3 h-3 text-red-500" /></Button>
+                                        </div>
+                                    ))}
                                 </div>
-                                <div className="flex items-center justify-between text-sm bg-muted/50 p-2 rounded">
-                                    <span>Wed, 02:30 PM</span>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6"><Trash2 className="w-3 h-3 text-red-500" /></Button>
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 );

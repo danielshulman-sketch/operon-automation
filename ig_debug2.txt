@@ -1,0 +1,20 @@
+=== ALL CONNECTIONS ===
+  instagram | easyai | id=7d3f9936-bfc2-4f93-b3f4-5778bf524d2a | credLen=35
+  google | daniel.shulman@gmail.com | id=2e99569d-b2fb-424a-af2e-e4a2f3559bca | credLen=716
+  linkedin | Daniel Shulman | id=be241077-f258-4a9f-9611-8e40c449d177 | credLen=453
+  linkedin | daniel.shulman@gmail.com | id=a0b51752-d1f4-4080-8ba3-3d03fcf12125 | credLen=51
+
+=== INSTAGRAM CONNECTIONS (1) ===
+  id=7d3f9936-bfc2-4f93-b3f4-5778bf524d2a name=easyai
+  keys: accessToken
+  token: present=true len=17 start="17841473886227220"
+  username: "MISSING"
+
+
+=== FACEBOOK CONNECTIONS (0) ===
+
+=== WORKFLOWS WITH INSTAGRAM PUBLISHER ===
+  Workflow: "Untitled Workflow" (a605f27b-01c4-4ba6-b762-7f95bb56e8ff)
+  Node ID: instagram-publisher-6
+  accountId: 7d3f9936-bfc2-4f93-b3f4-5778bf524d2a
+  Connection exists: true (instagram: easyai)

@@ -1,0 +1,11 @@
+src/app/(dashboard)/connections/page.tsx(68,13): error TS2339: Property 'login' does not exist on type 'FacebookSDKContextType'.
+src/components/workflow/config/NodeConfigPanel.tsx(647,40): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(661,53): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(663,82): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(674,65): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(676,94): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(689,65): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(691,94): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(701,80): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(711,57): error TS18048: 'selectedNode' is possibly 'undefined'.
+src/components/workflow/config/NodeConfigPanel.tsx(713,86): error TS18048: 'selectedNode' is possibly 'undefined'.

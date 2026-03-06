@@ -1,0 +1,49 @@
+npm warn Unknown project config "node-linker". This will stop working in the next major version of npm.
+Vercel CLI 50.1.3
+Retrieving project…
+Fetching deployments in daniels-projects-3d05e2ae
+> Deployments for daniels-projects-3d05e2ae/social-feeds-app [245ms]
+
+  Age     Deployment                                                              Status      Environment     Duration     Username               
+  58m     https://social-feeds-g6gpx3a2r-daniels-projects-3d05e2ae.vercel.app     ● Error     Production      14s          danielshulman-3494     
+  3d      https://social-feeds-afqpv0eus-daniels-projects-3d05e2ae.vercel.app     ● Error     Production      1m           danielshulman-3494     
+  3d      https://social-feeds-a3z7c5eur-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  3d      https://social-feeds-bjdhsiq6d-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      2m           danielshulman-3494     
+  5d      https://social-feeds-b7awp4t06-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  5d      https://social-feeds-i43ngoz9o-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-h1wzj10ie-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-qorggwdh8-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-6o9mlhst5-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-8jpadnfi8-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-ojuuw9mbp-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-2g9c8nntw-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-pd2yu10z2-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-i80ip19sg-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-hlnqc7r34-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-3xyrlnqfz-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-j5ef4ek03-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-3z9anmmv4-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      2m           danielshulman-3494     
+  6d      https://social-feeds-mtdyia0tt-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+  6d      https://social-feeds-lmld2lnea-daniels-projects-3d05e2ae.vercel.app     ● Ready     Production      1m           danielshulman-3494     
+
+https://social-feeds-g6gpx3a2r-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-afqpv0eus-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-a3z7c5eur-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-bjdhsiq6d-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-b7awp4t06-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-i43ngoz9o-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-h1wzj10ie-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-qorggwdh8-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-6o9mlhst5-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-8jpadnfi8-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-ojuuw9mbp-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-2g9c8nntw-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-pd2yu10z2-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-i80ip19sg-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-hlnqc7r34-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-3xyrlnqfz-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-j5ef4ek03-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-3z9anmmv4-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-mtdyia0tt-daniels-projects-3d05e2ae.vercel.app
+https://social-feeds-lmld2lnea-daniels-projects-3d05e2ae.vercel.app
+> To display the next page, run `vercel ls --next 1771944807903`

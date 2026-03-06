@@ -1,0 +1,43 @@
+remote: error: GH013: Repository rule violations found for refs/heads/main.        
+remote: 
+remote: - GITHUB PUSH PROTECTION        
+remote:   —————————————————————————————————————————        
+remote:     Resolve the following violations before pushing again        
+remote: 
+remote:     - Push cannot contain secrets        
+remote: 
+remote:             
+remote:      (?) Learn how to resolve a blocked push        
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push        
+remote:             
+remote:             
+remote:       —— LinkedIn Client Secret ————————————————————————————        
+remote:        locations:        
+remote:          - commit: 40e865fdac217a1e9d39055e9426f1fad6da008c        
+remote:            path: packages/social-feeds/prisma/dev.db:83        
+remote:             
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.        
+remote:        https://github.com/danielshulman-sketch/operon-automation/security/secret-scanning/unblock-secret/3A4cgs3iC9t7Rkn6CP1lontHpo6        
+remote:             
+remote:             
+remote:       —— OpenAI API Key ————————————————————————————————————        
+remote:        locations:        
+remote:          - commit: 79d6da11039fbebb38f71fc7d059eed4ff1c8ceb        
+remote:            path: packages/frontend/backups/backup-2025-12-18T15-30-00-071Z.json:556        
+remote:          - commit: 79d6da11039fbebb38f71fc7d059eed4ff1c8ceb        
+remote:            path: packages/frontend/backups/backup-2025-12-18T19-00-00-035Z.json:683        
+remote:          - commit: 79d6da11039fbebb38f71fc7d059eed4ff1c8ceb        
+remote:            path: packages/frontend/backups/backup-2025-12-18T20-00-00-021Z.json:738        
+remote:          - commit: 79d6da11039fbebb38f71fc7d059eed4ff1c8ceb        
+remote:            path: packages/frontend/backups/backup-2025-12-18T20-30-00-024Z.json:790        
+remote:          - commit: 79d6da11039fbebb38f71fc7d059eed4ff1c8ceb        
+remote:            path: packages/frontend/backups/backup-2025-12-18T21-00-00-072Z.json:789        
+remote:             
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.        
+remote:        https://github.com/danielshulman-sketch/operon-automation/security/secret-scanning/unblock-secret/3A4cgrkAqjcBXIr0Uz5axQ6I24a        
+remote:             
+remote: 
+remote: 
+To https://github.com/danielshulman-sketch/operon-automation.git
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/danielshulman-sketch/operon-automation.git'
