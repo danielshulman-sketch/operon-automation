@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
 
 interface Workflow {
   id: string;
@@ -118,6 +119,24 @@ export default function WorkflowsPage() {
     }
   };
 
+  const toggleActive = async (id: string, newActiveState: boolean) => {
+    // Optimistically update UI
+    setWorkflows(prev => prev.map(w => w.id === id ? { ...w, isActive: newActiveState } : w));
+    try {
+      const res = await fetch(`/api/workflows/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newActiveState }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Workflow ${newActiveState ? 'activated' : 'deactivated'}`);
+    } catch {
+      toast.error('Failed to update status');
+      // Revert if API fails
+      setWorkflows(prev => prev.map(w => w.id === id ? { ...w, isActive: !newActiveState } : w));
+    }
+  };
+
   if (isLoading) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin" /></div>;
   }
@@ -200,9 +219,15 @@ export default function WorkflowsPage() {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={workflow.isActive ? 'default' : 'secondary'}>
-                    {workflow.isActive ? 'Active' : 'Draft'}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={workflow.isActive}
+                      onCheckedChange={(checked) => toggleActive(workflow.id, checked)}
+                    />
+                    <Badge variant={workflow.isActive ? 'default' : 'secondary'}>
+                      {workflow.isActive ? 'Active' : 'Draft'}
+                    </Badge>
+                  </div>
                 </TableCell>
                 <TableCell>{new Date(workflow.updatedAt).toLocaleDateString()}</TableCell>
                 <TableCell className="text-right">
