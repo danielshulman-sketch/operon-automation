@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getApiAuthContext, unauthorizedText } from "@/lib/apiAuth";
 import { prisma } from "@/lib/prisma";
 /* import { getUserSubscription } from "@/lib/subscription"; */
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+export async function GET(req: Request) {
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     const workflows = await prisma.workflow.findMany({
-        where: { userId: session.user.id },
+        where: { userId: auth.userId },
         orderBy: { updatedAt: 'desc' }
     });
 
@@ -25,8 +24,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     const body = await req.json();
     const { name, definition } = body;
@@ -44,7 +43,7 @@ export async function POST(req: Request) {
 
     const workflow = await prisma.workflow.create({
         data: {
-            userId: session.user.id,
+            userId: auth.userId,
             name: name || "Untitled Workflow",
             definition: definition ? (typeof definition === 'string' ? definition : JSON.stringify(definition)) : "{}",
             isActive: false

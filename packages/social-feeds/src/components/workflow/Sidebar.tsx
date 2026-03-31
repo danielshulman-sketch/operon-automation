@@ -73,6 +73,7 @@ export const Sidebar = () => {
                 Router
             </div>
 
+
             <div className="text-sm font-medium text-muted-foreground mt-4 mb-1">Destinations</div>
             <div
                 className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
@@ -124,6 +125,13 @@ export const Sidebar = () => {
                 Squarespace Publisher
             </div>
             <div
+                className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
+                onDragStart={(event) => onDragStart(event, 'http-request', 'HTTP Request')}
+                draggable
+            >
+                HTTP Request
+            </div>
+                        <div
                 className="p-3 border rounded bg-background shadow-sm cursor-grab hover:border-primary transition-colors"
                 onDragStart={(event) => onDragStart(event, 'google-sheets-publisher', 'Google Sheets Publisher')}
                 draggable

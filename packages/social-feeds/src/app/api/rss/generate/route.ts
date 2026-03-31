@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getApiAuthContext, unauthorizedJson } from "@/lib/apiAuth";
 
 type RSSItemInput = {
   title: string;
@@ -70,10 +69,8 @@ const toRssXml = (payload: RSSPayload) => {
 };
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await getApiAuthContext(req);
+  if (!auth?.userId) return unauthorizedJson();
 
   try {
     const body = (await req.json()) as RSSPayload;

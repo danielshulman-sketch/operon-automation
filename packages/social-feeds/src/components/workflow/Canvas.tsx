@@ -29,6 +29,7 @@ import SourceNode from './nodes/SourceNode';
 import ProcessorNode from './nodes/ProcessorNode';
 import DestinationNode from './nodes/DestinationNode';
 import ImageGenNode from './nodes/ImageGenNode';
+import HttpRequestNode from './nodes/HttpRequestNode';
 import { LayoutGrid } from 'lucide-react';
 
 const initialNodes: Node[] = [
@@ -165,6 +166,7 @@ const CanvasContent = () => {
         'blog-creation': ProcessorNode,
         'image-generation': ImageGenNode,
         'router': ProcessorNode,
+        'http-request': HttpRequestNode,
         'facebook-publisher': DestinationNode,
         'linkedin-publisher': DestinationNode,
         'instagram-publisher': DestinationNode,

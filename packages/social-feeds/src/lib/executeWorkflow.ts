@@ -1,4 +1,46 @@
 import { prisma } from "@/lib/prisma";
+import { publishBlogToEasyAi, type PublishBlogPayload } from "@/lib/publishBlog";
+import {
+    applyHttpTemplate,
+    buildEasyAiPostBlogBody,
+    buildWorkflowHttpTemplateContext,
+    getWorkflowInternalSecret,
+    isInternalHttpRequest,
+    isPublishBlogRequest,
+    resolvePublishBlogRequestUrl,
+    validateHttpRequestTarget,
+} from "@/lib/httpRequest";
+
+const stringifyHttpResponse = (value: unknown) =>
+    typeof value === "string" ? value : JSON.stringify(value, null, 2);
+
+const summarizeHttpError = (status: number, statusText: string, responseText: string) => {
+    const statusLabel = statusText ? ` ${statusText}` : "";
+    const trimmed = responseText.trim();
+    if (!trimmed) {
+        return `HTTP Request failed: ${status}${statusLabel}`;
+    }
+
+    try {
+        const parsed = JSON.parse(trimmed) as {
+            error?: string | { message?: string };
+            message?: string;
+            details?: string;
+        };
+        const message =
+            (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) ||
+            parsed.message ||
+            parsed.details;
+
+        if (message) {
+            return `HTTP Request failed: ${status}${statusLabel} - ${message}`;
+        }
+    } catch {
+        // Keep the raw text path below for non-JSON responses.
+    }
+
+    return `HTTP Request failed: ${status}${statusLabel} - ${trimmed.slice(0, 300)}`;
+};
 
 const decodeHtml = (input: string) =>
     input
@@ -87,6 +129,9 @@ function parseStartRowFromRange(rangeOpt: string | undefined): number {
     return 1;
 }
 
+const normalizeEnv = (value?: string) =>
+    (value || "").trim().replace(/^["']|["']$/g, "");
+
 async function getGoogleWriteAccessToken(userId: string, forceRefresh = false): Promise<string | null> {
     try {
         const connections = await prisma.externalConnection.findMany({
@@ -113,8 +158,8 @@ async function getGoogleWriteAccessToken(userId: string, forceRefresh = false): 
         }
 
         const refreshToken = creds.refreshToken;
-        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SHEETS_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SHEETS_CLIENT_SECRET;
+        const clientId = normalizeEnv(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SHEETS_CLIENT_ID);
+        const clientSecret = normalizeEnv(process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SHEETS_CLIENT_SECRET);
         if (refreshToken && clientId && clientSecret) {
             const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
                 method: 'POST',
@@ -150,13 +195,20 @@ async function getGoogleWriteAccessToken(userId: string, forceRefresh = false): 
     }
 }
 
-export async function executeWorkflow(workflowId: string, userId: string, triggerType: "manual" | "schedule" = "manual") {
+export async function executeWorkflow(
+    workflowId: string,
+    userId: string,
+    triggerType: "manual" | "schedule" = "manual",
+    requestUrl?: string
+) {
     // Load workflow
     const workflow = await prisma.workflow.findUnique({
         where: { id: workflowId, userId: userId }
     });
     if (!workflow) throw new Error("Workflow not found");
-    if (!workflow.isActive) throw new Error("Workflow is not active");
+    if (triggerType === "schedule" && !workflow.isActive) {
+        throw new Error("Workflow is not active");
+    }
 
     // Parse definition
     const definition = workflow.definition ? JSON.parse(workflow.definition) : {};
@@ -340,9 +392,10 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         where: { id: userId },
                         select: { googleApiKey: true }
                     });
+                    const readToken = await getGoogleWriteAccessToken(userId);
 
-                    if (!userWithKey?.googleApiKey) {
-                        throw new Error('Google API Key not found. Please configure it in Settings.');
+                    if (!readToken && !userWithKey?.googleApiKey) {
+                        throw new Error('Google Sheets source requires a Google OAuth connection or Google API Key in Settings.');
                     }
 
                     const contentCol = ((node.data?.sheetColumn as string) || 'A').toUpperCase();
@@ -350,8 +403,14 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                     const statusCol = String.fromCharCode(statusColCharCode > 90 ? 90 : statusColCharCode);
 
                     const range = `${sheetName}!${contentCol}1:${statusCol}1000`;
-                    const fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${userWithKey.googleApiKey}`;
-                    const sheetsRes = await fetch(fetchUrl);
+                    let fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+                    const readHeaders: Record<string, string> = {};
+                    if (readToken) {
+                        readHeaders.Authorization = `Bearer ${readToken}`;
+                    } else {
+                        fetchUrl += `?key=${userWithKey?.googleApiKey}`;
+                    }
+                    const sheetsRes = await fetch(fetchUrl, { headers: readHeaders });
 
                     if (!sheetsRes.ok) {
                         const errData = await sheetsRes.json().catch(() => ({}));
@@ -377,20 +436,23 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         output = 'All rows in the sheet have been processed (marked as done).';
                     } else {
                         const actualRow = startRow + usedRowIndex;
-                        const markRange = `${sheetName}!${statusCol}${actualRow}`;
+                        const timestampCol = String.fromCharCode(statusCol.charCodeAt(0) + 1 > 90 ? 90 : statusCol.charCodeAt(0) + 1);
+                        const markRange = `${sheetName}!${statusCol}${actualRow}:${timestampCol}${actualRow}`;
                         const writeToken = await getGoogleWriteAccessToken(userId);
                         const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
                         let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
                         if (writeToken) {
                             writeHeaders['Authorization'] = `Bearer ${writeToken}`;
                         } else {
-                            writeUrl += `&key=${userWithKey.googleApiKey}`;
+                            writeUrl += `&key=${userWithKey?.googleApiKey}`;
                         }
+                        const now = new Date();
+                        const timestamp = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                         try {
                             const markRes = await fetch(writeUrl, {
                                 method: 'PUT',
                                 headers: writeHeaders,
-                                body: JSON.stringify({ values: [['done']] }),
+                                body: JSON.stringify({ values: [['done', timestamp]] }),
                             });
                             const markText = await markRes.text();
                             if (!markRes.ok) {
@@ -438,11 +500,19 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         const statusCol = String.fromCharCode(statusColCharCode > 90 ? 90 : statusColCharCode);
 
                         const userWithKey = await prisma.user.findUnique({ where: { id: userId }, select: { googleApiKey: true } });
+                        const readToken = await getGoogleWriteAccessToken(userId);
 
-                        if (userWithKey?.googleApiKey && sheetId) {
+                        if ((readToken || userWithKey?.googleApiKey) && sheetId) {
                             try {
                                 const range = `${tab}!${contentCol}1:${statusCol}1000`;
-                                const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?key=${userWithKey.googleApiKey}`);
+                                let fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+                                const readHeaders: Record<string, string> = {};
+                                if (readToken) {
+                                    readHeaders.Authorization = `Bearer ${readToken}`;
+                                } else {
+                                    fetchUrl += `?key=${userWithKey?.googleApiKey}`;
+                                }
+                                const sheetsRes = await fetch(fetchUrl, { headers: readHeaders });
                                 if (sheetsRes.ok) {
                                     const sheetData = await sheetsRes.json();
                                     const rows: string[][] = sheetData.values || [];
@@ -463,20 +533,23 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                                         inputContent = 'All rows in the sheet have been processed (marked as done).';
                                     } else {
                                         const actualRow = startRow + usedRowIndex;
-                                        const markRange = `${tab}!${statusCol}${actualRow}`;
+                                        const timestampCol = String.fromCharCode(statusCol.charCodeAt(0) + 1 > 90 ? 90 : statusCol.charCodeAt(0) + 1);
+                                        const markRange = `${tab}!${statusCol}${actualRow}:${timestampCol}${actualRow}`;
                                         let writeToken = await getGoogleWriteAccessToken(userId);
                                         const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
                                         let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(markRange)}?valueInputOption=USER_ENTERED`;
                                         if (writeToken) {
                                             writeHeaders['Authorization'] = `Bearer ${writeToken}`;
                                         } else {
-                                            writeUrl += `&key=${userWithKey.googleApiKey}`;
+                                            writeUrl += `&key=${userWithKey?.googleApiKey}`;
                                         }
+                                        const now = new Date();
+                                        const timestamp = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                                         try {
                                             let markRes = await fetch(writeUrl, {
                                                 method: 'PUT',
                                                 headers: writeHeaders,
-                                                body: JSON.stringify({ values: [['done']] }),
+                                                body: JSON.stringify({ values: [['done', timestamp]] }),
                                             });
                                             if (!markRes.ok && writeToken && (markRes.status === 401 || markRes.status === 403)) {
                                                 writeToken = await getGoogleWriteAccessToken(userId, true);
@@ -487,7 +560,7 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                                                             'Content-Type': 'application/json',
                                                             'Authorization': `Bearer ${writeToken}`,
                                                         },
-                                                        body: JSON.stringify({ values: [['done']] }),
+                                                        body: JSON.stringify({ values: [['done', timestamp]] }),
                                                     });
                                                 }
                                             }
@@ -502,7 +575,7 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                                 inputContent = `Error fetching Sheet: ${e}`;
                             }
                         } else {
-                            inputContent = "Google Sheets source requires a Google API Key in Settings and a valid Spreadsheet ID.";
+                            inputContent = "Google Sheets source requires a Google OAuth connection or Google API Key in Settings, plus a valid Spreadsheet ID.";
                         }
                     } else {
                         inputContent = lastTextOutput || lastOutput || '';
@@ -607,11 +680,19 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         const statusCol = String.fromCharCode(statusColCharCode > 90 ? 90 : statusColCharCode);
 
                         const userWithKey = await prisma.user.findUnique({ where: { id: userId }, select: { googleApiKey: true } });
+                        const readToken = await getGoogleWriteAccessToken(userId);
 
-                        if (userWithKey?.googleApiKey && sheetId) {
+                        if ((readToken || userWithKey?.googleApiKey) && sheetId) {
                             try {
                                 const range = `${tab}!${contentCol}1:${statusCol}1000`;
-                                const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
+                                let fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+                                const readHeaders: Record<string, string> = {};
+                                if (readToken) {
+                                    readHeaders.Authorization = `Bearer ${readToken}`;
+                                } else {
+                                    fetchUrl += `?key=${userWithKey?.googleApiKey}`;
+                                }
+                                const sheetsRes = await fetch(fetchUrl, { headers: readHeaders });
                                 if (sheetsRes.ok) {
                                     const sheetData = await sheetsRes.json();
                                     const rows: string[][] = sheetData.values || [];
@@ -632,20 +713,23 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                                         sourceText = 'All rows in the sheet have been processed (marked as done).';
                                     } else {
                                         const actualRow = startRow + usedRowIndex;
-                                        const markRange = `${tab}!${statusCol}${actualRow}`;
+                                        const timestampCol = String.fromCharCode(statusCol.charCodeAt(0) + 1 > 90 ? 90 : statusCol.charCodeAt(0) + 1);
+                                        const markRange = `${tab}!${statusCol}${actualRow}:${timestampCol}${actualRow}`;
                                         const writeToken = await getGoogleWriteAccessToken(userId);
                                         const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
                                         let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED`;
                                         if (writeToken) {
                                             writeHeaders['Authorization'] = `Bearer ${writeToken}`;
                                         } else {
-                                            writeUrl += `&key=${userWithKey.googleApiKey}`;
+                                            writeUrl += `&key=${userWithKey?.googleApiKey}`;
                                         }
+                                        const now = new Date();
+                                        const timestamp = `${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                                         try {
                                             const markRes = await fetch(writeUrl, {
                                                 method: 'PUT',
                                                 headers: writeHeaders,
-                                                body: JSON.stringify({ values: [['done']] }),
+                                                body: JSON.stringify({ values: [['done', timestamp]] }),
                                             });
                                             if (!markRes.ok) {
                                                 const markText = await markRes.text();
@@ -662,7 +746,7 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                                 sourceText = `Error fetching Sheet: ${e}`;
                             }
                         } else {
-                            sourceText = "Google Sheets source requires a Google API Key in Settings and a valid Spreadsheet ID.";
+                            sourceText = "Google Sheets source requires a Google OAuth connection or Google API Key in Settings, plus a valid Spreadsheet ID.";
                         }
                     } else {
                         sourceText = lastOutput || node.data?.content || '';
@@ -872,18 +956,23 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         const liToken = liCreds.accessToken;
                         if (!liToken) { lastLiError = 'No access token'; continue; }
 
-                        const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
-                            headers: { 'Authorization': `Bearer ${liToken}` },
-                        });
-                        if (!profileRes.ok) {
-                            const errData = await profileRes.json().catch(() => ({}));
-                            lastLiError = errData.message || errData.error_description || 'Invalid access token';
-                            continue;
-                        }
-                        const profileData = await profileRes.json();
-                        if (!profileData.sub) { lastLiError = 'No profile ID returned'; continue; }
+                        let personUrn = liCreds.username;
 
-                        const personUrn = `urn:li:person:${profileData.sub}`;
+                        if (!personUrn || !personUrn.startsWith('urn:li:')) {
+                            const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+                                headers: { 'Authorization': `Bearer ${liToken}` },
+                            });
+                            if (!profileRes.ok) {
+                                const errData = await profileRes.json().catch(() => ({}));
+                                lastLiError = errData.message || errData.error_description || 'Invalid access token';
+                                continue;
+                            }
+                            const profileData = await profileRes.json();
+                            if (!profileData.sub) { lastLiError = 'No profile ID returned'; continue; }
+
+                            personUrn = `urn:li:person:${profileData.sub}`;
+                        }
+
                         let liPostBody: any;
 
                         if (liImageUrl) {
@@ -1264,20 +1353,7 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         where: { id: userId },
                         select: { googleApiKey: true }
                     });
-
-                    if (!user?.googleApiKey) throw new Error('Google API Key not found. Please configure it in Settings.');
-
-                    const googleConnection = connections.find(c => c.provider === 'google');
-                    let accessToken = '';
-
-                    if (googleConnection) {
-                        try {
-                            const creds = JSON.parse(googleConnection.credentials);
-                            accessToken = creds.accessToken;
-                        } catch (e) {
-                            console.error("Failed to parse Google creds", e);
-                        }
-                    }
+                    let accessToken = await getGoogleWriteAccessToken(userId);
 
                     if (!accessToken && !user?.googleApiKey) {
                         throw new Error('No Google connection or API Key found. Connect Google in Settings or Connections.');
@@ -1310,14 +1386,17 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                     }
 
                     const range = `${sheetTab}!A1`;
-                    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:append?valueInputOption=USER_ENTERED&key=${user?.googleApiKey}`;
+                    let url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
+                    if (!accessToken) {
+                        url += `&key=${user?.googleApiKey}`;
+                    }
 
                     const headers: any = { 'Content-Type': 'application/json' };
                     if (accessToken) {
                         headers['Authorization'] = `Bearer ${accessToken}`;
                     }
 
-                    const res = await fetch(url, {
+                    let res = await fetch(url, {
                         method: 'POST',
                         headers,
                         body: JSON.stringify({
@@ -1327,12 +1406,154 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                         }),
                     });
 
+                    if (!res.ok && accessToken && (res.status === 401 || res.status === 403)) {
+                        const refreshedToken = await getGoogleWriteAccessToken(userId, true);
+                        if (refreshedToken) {
+                            accessToken = refreshedToken;
+                            res = await fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`,
+                                },
+                                body: JSON.stringify({
+                                    range,
+                                    majorDimension: 'ROWS',
+                                    values: [rowData],
+                                }),
+                            });
+                        }
+                    }
+
                     const data = await res.json();
                     if (!res.ok) {
                         throw new Error(`Google Sheets API Error: ${data.error?.message || res.statusText}`);
                     }
 
                     output = `Successfully appended row to ${sheetTab}. Updated range: ${data.updates?.updatedRange}`;
+                    break;
+                }
+
+
+                case 'http-request': {
+                    const rawUrl = (node.data?.url as string || '').trim();
+                    const targetError = validateHttpRequestTarget(rawUrl, requestUrl);
+                    if (targetError) throw new Error(targetError);
+
+                    const method = ((node.data?.method as string) || 'POST').toUpperCase();
+                    const contentType = (node.data?.contentType as string) || 'application/json';
+                    const bearerToken = (node.data?.bearerToken as string || '').trim();
+                    const customHeaders: { key: string; value: string }[] = (node.data?.headers as any[]) || [];
+
+                    const upstreamText = lastTextOutput || lastOutput || '';
+                    const templateContext = buildWorkflowHttpTemplateContext({
+                        upstreamText,
+                        lastImageUrl,
+                        workflowId,
+                        executionId: execution.id,
+                        userId,
+                    });
+                    const url = applyHttpTemplate(
+                        resolvePublishBlogRequestUrl(rawUrl, requestUrl),
+                        templateContext
+                    );
+                    const isPublishBlogTarget = isPublishBlogRequest(rawUrl) || isPublishBlogRequest(url);
+
+                    const reqHeaders: Record<string, string> = {};
+                    if (method !== 'GET') {
+                        reqHeaders['Content-Type'] = contentType;
+                    }
+                    if (bearerToken) {
+                        reqHeaders['Authorization'] = `Bearer ${applyHttpTemplate(bearerToken, templateContext)}`;
+                    }
+                    for (const h of customHeaders) {
+                        if (h.key && h.value) {
+                            reqHeaders[applyHttpTemplate(h.key, templateContext)] = applyHttpTemplate(h.value, templateContext);
+                        }
+                    }
+
+                    if (isInternalHttpRequest(url, requestUrl)) {
+                        const internalSecret = getWorkflowInternalSecret();
+                        if (internalSecret) {
+                            reqHeaders['x-workflow-secret'] = internalSecret;
+                            reqHeaders['x-workflow-user-id'] = userId;
+                            reqHeaders['x-workflow-id'] = workflowId;
+                            reqHeaders['x-workflow-execution-id'] = execution.id;
+                        }
+                    }
+
+                    let bodyString: string | undefined;
+                    if (method !== 'GET') {
+                        let bodyTemplate = (node.data?.body as string || '').trim();
+
+                        // Replace {{content}} and {{ai_output}} placeholders
+                        if (bodyTemplate) {
+                            bodyTemplate = applyHttpTemplate(bodyTemplate, templateContext);
+                            if (contentType === 'application/json' && isPublishBlogTarget) {
+                                try {
+                                    JSON.parse(bodyTemplate);
+                                } catch {
+                                    bodyTemplate = buildEasyAiPostBlogBody(templateContext);
+                                }
+                            }
+                        } else if (upstreamText) {
+                            // No template set – try to detect content-type and wrap appropriately
+                            const ct = (node.data?.contentType as string) || 'application/json';
+                            if (ct === 'application/json' && isPublishBlogTarget) {
+                                bodyTemplate = buildEasyAiPostBlogBody(templateContext);
+                            } else if (ct === 'application/json') {
+                                bodyTemplate = JSON.stringify({ content: upstreamText });
+                            } else if (ct === 'application/x-www-form-urlencoded') {
+                                bodyTemplate = 'content=' + encodeURIComponent(upstreamText);
+                            } else {
+                                bodyTemplate = upstreamText;
+                            }
+                        }
+                        bodyString = bodyTemplate || undefined;
+                    }
+
+                    if (isPublishBlogTarget) {
+                        let publishPayload: PublishBlogPayload = {};
+                        if (bodyString) {
+                            try {
+                                publishPayload = JSON.parse(bodyString);
+                            } catch {
+                                throw new Error('HTTP Request node: Publish Blog body must be valid JSON.');
+                            }
+                        }
+
+                        const publishResult = await publishBlogToEasyAi(publishPayload);
+                        const responseText = stringifyHttpResponse(publishResult.data);
+
+                        if (publishResult.status < 200 || publishResult.status >= 300) {
+                            throw new Error(`HTTP Request failed: ${publishResult.status} ${responseText.slice(0, 300)}`);
+                        }
+
+                        output = `HTTP ${method} ${url} -> ${publishResult.status}\n${responseText}`;
+                        break;
+                    }
+
+                    const httpRes = await fetch(url, {
+                        method,
+                        headers: reqHeaders,
+                        ...(bodyString !== undefined ? { body: bodyString } : {}),
+                    });
+
+                    const responseText = await httpRes.text();
+
+                    if (!httpRes.ok) {
+                        throw new Error(summarizeHttpError(httpRes.status, httpRes.statusText, responseText));
+                    }
+
+                    let responseOutput = responseText;
+                    try {
+                        const parsed = JSON.parse(responseText);
+                        responseOutput = JSON.stringify(parsed, null, 2);
+                    } catch {
+                        // Keep raw text if not JSON
+                    }
+
+                    output = `HTTP ${method} ${url} -> ${httpRes.status}\n${responseOutput}`;
                     break;
                 }
 
@@ -1346,8 +1567,8 @@ export async function executeWorkflow(workflowId: string, userId: string, trigge
                 if (output && (output.startsWith('http') || output.startsWith('data:'))) {
                     lastImageUrl = output;
                 }
-            } else if (node.type?.includes('publisher')) {
-                // Do nothing
+            } else if (node.type?.includes('publisher') || node.type === 'http-request') {
+                // Do nothing — terminal/publisher nodes don't update lastTextOutput
             } else {
                 if (output) lastTextOutput = output;
             }

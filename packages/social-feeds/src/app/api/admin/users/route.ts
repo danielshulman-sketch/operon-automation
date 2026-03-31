@@ -1,25 +1,13 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { forbiddenText, getApiAuthContext, unauthorizedText } from "@/lib/apiAuth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-    const session = await getServerSession(authOptions);
-
-    if (!session || !session.user || !session.user.email) {
-        return new NextResponse("Unauthorized", { status: 401 });
-    }
-
-    // Check if user is admin
-    const user = await prisma.user.findUnique({
-        where: { email: session.user.email },
-    });
-
-    if (!user || user.role !== "admin") {
-        return new NextResponse("Forbidden", { status: 403 });
-    }
+export async function GET(req: Request) {
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
+    if (auth.role !== "admin") return forbiddenText();
 
     try {
         const users = await prisma.user.findMany({

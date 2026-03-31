@@ -1,20 +1,171 @@
 ﻿import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getApiAuthContext, unauthorizedJson } from "@/lib/apiAuth";
+import { publishBlogToEasyAi, type PublishBlogPayload } from "@/lib/publishBlog";
+import {
+    applyHttpTemplate,
+    buildEasyAiPostBlogBody,
+    buildWorkflowHttpTemplateContext,
+    getWorkflowInternalSecret,
+    isInternalHttpRequest,
+    isPublishBlogRequest,
+    resolvePublishBlogRequestUrl,
+    validateHttpRequestTarget,
+} from "@/lib/httpRequest";
 
-export async function POST(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const normalizeEnv = (value?: string) =>
+    (value || "").trim().replace(/^["']|["']$/g, "");
+
+const getString = (value: unknown, fallback = "") =>
+    typeof value === "string" ? value : fallback;
+
+const normalizeSpreadsheetId = (value: unknown) => {
+    const trimmed = getString(value).trim();
+    if (!trimmed) return "";
+
+    const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+    return match?.[1] || trimmed;
+};
+
+async function parseJsonResponse<T = any>(response: Response): Promise<T | null> {
+    const text = await response.text().catch(() => "");
+    if (!text) return null;
+
+    try {
+        return JSON.parse(text) as T;
+    } catch {
+        return null;
+    }
+}
+
+async function getUpstreamErrorMessage(response: Response, fallback: string): Promise<string> {
+    const text = await response.text().catch(() => "");
+    if (!text) return fallback;
+
+    try {
+        const parsed = JSON.parse(text) as any;
+        return parsed?.error?.message || parsed?.message || text || fallback;
+    } catch {
+        return text;
+    }
+}
+
+async function buildUpstreamErrorResponse(response: Response, prefix: string, fallback = "Unknown error") {
+    const message = await getUpstreamErrorMessage(response, fallback);
+    const status = response.status >= 400 && response.status < 600 ? response.status : 502;
+
+    return NextResponse.json({
+        success: false,
+        error: `${prefix}: ${message}`,
+    }, { status });
+}
+
+const stringifyHttpResponse = (value: unknown) =>
+    typeof value === "string" ? value : JSON.stringify(value, null, 2);
+
+const summarizeHttpError = (status: number, statusText: string, responseText: string) => {
+    const statusLabel = statusText ? ` ${statusText}` : "";
+    const trimmed = responseText.trim();
+    if (!trimmed) {
+        return `HTTP Request failed: ${status}${statusLabel}`;
     }
 
     try {
+        const parsed = JSON.parse(trimmed) as {
+            error?: string | { message?: string };
+            message?: string;
+            details?: string;
+        };
+        const message =
+            (typeof parsed.error === "string" ? parsed.error : parsed.error?.message) ||
+            parsed.message ||
+            parsed.details;
+
+        if (message) {
+            return `HTTP Request failed: ${status}${statusLabel} - ${message}`;
+        }
+    } catch {
+        // Fall back to the raw response below.
+    }
+
+    return `HTTP Request failed: ${status}${statusLabel} - ${trimmed.slice(0, 300)}`;
+};
+
+async function getGoogleAccessToken(userId: string, forceRefresh = false): Promise<string | null> {
+    try {
+        const connections = await prisma.externalConnection.findMany({
+            where: { userId, provider: 'google' },
+            orderBy: { updatedAt: 'desc' },
+        });
+        if (!connections.length) return null;
+
+        let connection = connections[0];
+        for (const c of connections) {
+            const parsed = JSON.parse(c.credentials || '{}');
+            if (parsed.refreshToken) {
+                connection = c;
+                break;
+            }
+        }
+
+        const creds = JSON.parse(connection.credentials || '{}');
+        const now = Date.now();
+        const expiresAt = typeof creds.expiresAt === 'number' ? creds.expiresAt : 0;
+
+        if (!forceRefresh && creds.accessToken && expiresAt && expiresAt > (now + 60_000)) {
+            return creds.accessToken;
+        }
+
+        const refreshToken = creds.refreshToken;
+        const clientId = normalizeEnv(process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_SHEETS_CLIENT_ID);
+        const clientSecret = normalizeEnv(process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_SHEETS_CLIENT_SECRET);
+        if (refreshToken && clientId && clientSecret) {
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken,
+                }),
+            });
+
+            const tokenData = await tokenRes.json().catch(() => ({}));
+            if (tokenRes.ok && tokenData.access_token) {
+                const nextCreds = {
+                    ...creds,
+                    accessToken: tokenData.access_token,
+                    expiresAt: now + ((tokenData.expires_in || 3600) * 1000),
+                };
+                await prisma.externalConnection.update({
+                    where: { id: connection.id },
+                    data: { credentials: JSON.stringify(nextCreds) },
+                });
+                return nextCreds.accessToken;
+            }
+        }
+
+        return creds.accessToken || null;
+    } catch {
+        return null;
+    }
+}
+
+export async function POST(req: Request) {
+    try {
+        const auth = await getApiAuthContext(req);
+        if (!auth?.userId) return unauthorizedJson();
+
         const body = await req.json();
         const { nodeType, masterPrompt, taskPrompt, provider } = body;
 
         if (nodeType === 'ai-generation') {
-            const { contentSource, rssUrl, sheetId, sheetTab, sheetColumn } = body;
+            const { contentSource, rssUrl, sheetTab, sheetColumn } = body;
+            const sheetId = normalizeSpreadsheetId(body.sheetId);
 
             // 1. Determine Input Content
             let inputContent = '';
@@ -44,12 +195,20 @@ export async function POST(req: Request) {
                     }
                 }
             } else if (contentSource === 'google-sheets') {
-                // Try to use Google Sheets API if API key exists
-                const userWithKey = await prisma.user.findUnique({ where: { id: session.user.id }, select: { googleApiKey: true } });
-                if (userWithKey?.googleApiKey && sheetId) {
+                // Prefer OAuth token; fallback to API key if provided
+                const userWithKey = await prisma.user.findUnique({ where: { id: auth.userId }, select: { googleApiKey: true } });
+                const readToken = await getGoogleAccessToken(auth.userId);
+                if ((readToken || userWithKey?.googleApiKey) && sheetId) {
                     try {
                         const range = `${sheetTab || 'Sheet1'}!${sheetColumn || 'A'}1:${sheetColumn || 'A'}1000`;
-                        const sheetsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${userWithKey.googleApiKey}`);
+                        let fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
+                        const readHeaders: Record<string, string> = {};
+                        if (readToken) {
+                            readHeaders.Authorization = `Bearer ${readToken}`;
+                        } else {
+                            fetchUrl += `?key=${userWithKey?.googleApiKey}`;
+                        }
+                        const sheetsRes = await fetch(fetchUrl, { headers: readHeaders });
                         if (sheetsRes.ok) {
                             const sheetData = await sheetsRes.json();
                             const rows: string[][] = sheetData.values || [];
@@ -70,9 +229,16 @@ export async function POST(req: Request) {
                                 const statusCol = String.fromCharCode(((sheetColumn || 'A').toUpperCase().charCodeAt(0) + 1 > 90) ? 90 : (sheetColumn || 'A').toUpperCase().charCodeAt(0) + 1);
                                 const actualRow = usedRowIndex + 1;
                                 const markRange = `${sheetTab || 'Sheet1'}!${statusCol}${actualRow}`;
-                                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${markRange}?valueInputOption=USER_ENTERED&key=${userWithKey.googleApiKey}`, {
+                                let writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(markRange)}?valueInputOption=USER_ENTERED`;
+                                const writeHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                                if (readToken) {
+                                    writeHeaders.Authorization = `Bearer ${readToken}`;
+                                } else {
+                                    writeUrl += `&key=${userWithKey?.googleApiKey}`;
+                                }
+                                await fetch(writeUrl, {
                                     method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
+                                    headers: writeHeaders,
                                     body: JSON.stringify({ values: [['done']] }),
                                 });
                             }
@@ -83,15 +249,15 @@ export async function POST(req: Request) {
                         inputContent = `Error fetching Sheet: ${e}`;
                     }
                 } else {
-                    inputContent = "Google Sheets source requires a Google API Key in Settings and a valid Spreadsheet ID.";
+                    inputContent = "Google Sheets source requires a Google OAuth connection or Google API Key in Settings and a valid Spreadsheet ID.";
                 }
             } else {
                 // For testing, we might not have 'upstream' content, so we use dummy text if not provided
                 inputContent = "This is sample upstream content for testing purposes.";
             }
 
-            let fullPrompt = taskPrompt || 'Generate a social media post.';
-            const persona = masterPrompt || 'You are a helpful social media assistant.';
+            let fullPrompt = getString(taskPrompt, 'Generate a social media post.');
+            const persona = getString(masterPrompt, 'You are a helpful social media assistant.');
 
             if (fullPrompt.includes('{{content}}')) {
                 fullPrompt = fullPrompt.replace('{{content}}', inputContent);
@@ -111,7 +277,7 @@ export async function POST(req: Request) {
 
             // Get the user's API key from the database
             const user = await prisma.user.findUnique({
-                where: { id: session.user.id },
+                where: { id: auth.userId },
                 select: { openaiApiKey: true, openrouterApiKey: true },
             });
 
@@ -141,15 +307,11 @@ export async function POST(req: Request) {
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    return NextResponse.json({
-                        success: false,
-                        error: `OpenRouter API error: ${errorData.error?.message || 'Unknown error'}`,
-                    }, { status: 500 });
+                    return buildUpstreamErrorResponse(response, "OpenRouter API error");
                 }
 
-                const data = await response.json();
-                const generatedText = data.choices[0]?.message?.content || 'No content generated.';
+                const data = await parseJsonResponse(response);
+                const generatedText = data?.choices?.[0]?.message?.content || 'No content generated.';
 
                 return NextResponse.json({
                     success: true,
@@ -186,15 +348,11 @@ export async function POST(req: Request) {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                return NextResponse.json({
-                    success: false,
-                    error: `OpenAI API error: ${errorData.error?.message || 'Unknown error'}`,
-                }, { status: 500 });
+                return buildUpstreamErrorResponse(response, "OpenAI API error");
             }
 
-            const data = await response.json();
-            const generatedText = data.choices[0]?.message?.content || 'No content generated.';
+            const data = await parseJsonResponse(response);
+            const generatedText = data?.choices?.[0]?.message?.content || 'No content generated.';
 
             return NextResponse.json({
                 success: true,
@@ -236,8 +394,8 @@ export async function POST(req: Request) {
                 sourceText = "Sample upstream content for blog generation testing.";
             }
 
-            const blogPrompt = (body.blogPrompt as string) || 'Write a blog post.';
-            const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { openaiApiKey: true } });
+            const blogPrompt = getString(body.blogPrompt, 'Write a blog post.');
+            const user = await prisma.user.findUnique({ where: { id: auth.userId }, select: { openaiApiKey: true } });
 
             if (!user?.openaiApiKey) {
                 return NextResponse.json({ success: false, error: 'No OpenAI API key.' }, { status: 400 });
@@ -260,24 +418,158 @@ export async function POST(req: Request) {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                return NextResponse.json({ success: false, error: errorData.error?.message }, { status: 500 });
+                return buildUpstreamErrorResponse(response, "OpenAI API error");
             }
 
-            const data = await response.json();
-            return NextResponse.json({ success: true, result: data.choices[0]?.message?.content });
+            const data = await parseJsonResponse(response);
+            return NextResponse.json({ success: true, result: data?.choices?.[0]?.message?.content || 'No content generated.' });
+        }
+
+        if (nodeType === 'http-request') {
+            const rawUrl = getString(body.url).trim();
+            const targetError = validateHttpRequestTarget(rawUrl, req.url);
+            if (targetError) {
+                return NextResponse.json({ success: false, error: targetError }, { status: 400 });
+            }
+
+            const method = getString(body.method, 'POST').toUpperCase();
+            const contentType = getString(body.contentType, 'application/json');
+            const bearerToken = getString(body.bearerToken).trim();
+            const customHeaders: { key: string; value: string }[] = Array.isArray(body.headers) ? body.headers : [];
+
+            const isDirectBlogPublishTarget = isPublishBlogRequest(rawUrl);
+            const upstreamText =
+                getString(body.testInput) ||
+                getString(body.taskPrompt) ||
+                getString(body.masterPrompt) ||
+                (isDirectBlogPublishTarget ? "<h1>Test Post</h1><p>This is a test blog post generated from the HTTP node test path.</p>" : "");
+            const templateContext = buildWorkflowHttpTemplateContext({
+                upstreamText,
+                workflowId: getString(body.workflowId, 'test-workflow'),
+                executionId: 'test-execution',
+                userId: auth.userId,
+            });
+            const url = applyHttpTemplate(
+                resolvePublishBlogRequestUrl(rawUrl, req.url),
+                templateContext
+            );
+            const isPublishBlogTarget = isPublishBlogRequest(rawUrl) || isPublishBlogRequest(url);
+
+            const reqHeaders: Record<string, string> = {};
+            if (method !== 'GET') {
+                reqHeaders['Content-Type'] = contentType;
+            }
+            if (bearerToken) {
+                reqHeaders['Authorization'] = `Bearer ${applyHttpTemplate(bearerToken, templateContext)}`;
+            }
+            for (const header of customHeaders) {
+                if (header?.key && header?.value) {
+                    reqHeaders[applyHttpTemplate(header.key, templateContext)] = applyHttpTemplate(header.value, templateContext);
+                }
+            }
+
+            if (isInternalHttpRequest(url, req.url)) {
+                const internalSecret = getWorkflowInternalSecret();
+                if (internalSecret) {
+                    reqHeaders['x-workflow-secret'] = internalSecret;
+                    reqHeaders['x-workflow-user-id'] = auth.userId;
+                    reqHeaders['x-workflow-id'] = getString(body.workflowId, 'test-workflow');
+                    reqHeaders['x-workflow-execution-id'] = 'test-execution';
+                }
+            }
+
+            let bodyString: string | undefined;
+            if (method !== 'GET') {
+                let bodyTemplate = getString(body.body).trim();
+                if (bodyTemplate) {
+                    bodyTemplate = applyHttpTemplate(bodyTemplate, templateContext);
+                    if (contentType === 'application/json' && isPublishBlogTarget) {
+                        try {
+                            JSON.parse(bodyTemplate);
+                        } catch {
+                            bodyTemplate = buildEasyAiPostBlogBody(templateContext);
+                        }
+                    }
+                } else if (upstreamText) {
+                    if (contentType === 'application/json' && isPublishBlogTarget) {
+                        bodyTemplate = buildEasyAiPostBlogBody(templateContext);
+                    } else if (contentType === 'application/json') {
+                        bodyTemplate = JSON.stringify({ content: upstreamText });
+                    } else if (contentType === 'application/x-www-form-urlencoded') {
+                        bodyTemplate = `content=${encodeURIComponent(upstreamText)}`;
+                    } else {
+                        bodyTemplate = upstreamText;
+                    }
+                }
+                bodyString = bodyTemplate || undefined;
+            }
+
+            if (isPublishBlogTarget) {
+                let publishPayload: PublishBlogPayload = {};
+                if (bodyString) {
+                    try {
+                        publishPayload = JSON.parse(bodyString);
+                    } catch {
+                        return NextResponse.json({
+                            success: false,
+                            error: 'HTTP Request node: Publish Blog body must be valid JSON.',
+                        }, { status: 400 });
+                    }
+                }
+
+                const publishResult = await publishBlogToEasyAi(publishPayload);
+                const responseText = stringifyHttpResponse(publishResult.data);
+
+                if (publishResult.status < 200 || publishResult.status >= 300) {
+                    return NextResponse.json({
+                        success: false,
+                        error: summarizeHttpError(publishResult.status, "", responseText),
+                    }, { status: publishResult.status });
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    result: `HTTP ${method} ${url} -> ${publishResult.status}\n${responseText}`,
+                });
+            }
+
+            const response = await fetch(url, {
+                method,
+                headers: reqHeaders,
+                ...(bodyString !== undefined ? { body: bodyString } : {}),
+            });
+
+            const responseText = await response.text();
+            if (!response.ok) {
+                return NextResponse.json({
+                    success: false,
+                    error: summarizeHttpError(response.status, response.statusText, responseText),
+                }, { status: response.status });
+            }
+
+            let responseOutput = responseText;
+            try {
+                responseOutput = JSON.stringify(JSON.parse(responseText), null, 2);
+            } catch {
+                // Keep raw text when the upstream response is not JSON.
+            }
+
+            return NextResponse.json({
+                success: true,
+                result: `HTTP ${method} ${url} -> ${response.status}\n${responseOutput}`,
+            });
         }
 
         if (nodeType === 'image-generation') {
             const provider = body.provider || 'dalle-3';
             // Use the explicit image prompt from the test UI, or default. Do NOT use taskPrompt as it's for text generation.
-            let prompt = (body.prompt as string)?.trim() || 'A creative image.';
+            let prompt = getString(body.prompt, 'A creative image.').trim() || 'A creative image.';
 
             console.log('[Test Node] Image Generation Request:', { provider, prompt, promptLength: prompt.length });
 
             if (provider === 'dalle-3') {
                 const user = await prisma.user.findUnique({
-                    where: { id: session.user.id },
+                    where: { id: auth.userId },
                     select: { openaiApiKey: true, openrouterApiKey: true },
                 });
                 // @ts-ignore
@@ -301,17 +593,16 @@ export async function POST(req: Request) {
                 });
 
                 if (!response.ok) {
-                    const err = await response.json();
-                    return NextResponse.json({ success: false, error: `DALL-E 3 error: ${err.error?.message || 'Unknown'}` }, { status: 500 });
+                    return buildUpstreamErrorResponse(response, "DALL-E 3 error");
                 }
 
-                const data = await response.json();
-                const imageUrl = data.data[0]?.url || '';
+                const data = await parseJsonResponse(response);
+                const imageUrl = data?.data?.[0]?.url || '';
                 return NextResponse.json({ success: true, result: imageUrl });
 
             } else if (provider === 'nano-banana' || provider === 'gemini') {
                 const user = await prisma.user.findUnique({
-                    where: { id: session.user.id },
+                    where: { id: auth.userId },
                     select: { googleApiKey: true } // This field exists now
                 });
 

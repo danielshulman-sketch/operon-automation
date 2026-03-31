@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getApiAuthContext, unauthorizedJson } from "@/lib/apiAuth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic';
 
 // GET user settings (including masked API key)
-export async function GET() {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(req: Request) {
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedJson();
 
     const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
+        where: { id: auth.userId },
         select: { name: true, email: true, openaiApiKey: true, googleApiKey: true, linkedinClientId: true, linkedinClientSecret: true, facebookAppId: true, facebookAppSecret: true },
     });
 
@@ -37,8 +36,8 @@ export async function GET() {
 
 // PUT update user settings
 export async function PUT(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedJson();
 
     const body = await req.json();
     const updateData: any = {};
@@ -52,7 +51,7 @@ export async function PUT(req: Request) {
     if (body.facebookAppSecret !== undefined) updateData.facebookAppSecret = body.facebookAppSecret;
 
     const user = await prisma.user.update({
-        where: { id: session.user.id },
+        where: { id: auth.userId },
         data: updateData,
     });
 
@@ -65,14 +64,14 @@ export async function PUT(req: Request) {
 
 // POST test LinkedIn connections
 export async function POST(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedJson();
 
     const body = await req.json().catch(() => ({}));
 
     if (body.action === 'test-linkedin') {
         const connections = await prisma.externalConnection.findMany({
-            where: { userId: session.user.id, provider: 'linkedin' }
+            where: { userId: auth.userId, provider: 'linkedin' }
         });
 
         const results = [];

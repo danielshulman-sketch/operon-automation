@@ -1,18 +1,10 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+export const dynamic = 'force-dynamic';
 import "./globals.css";
-
-
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Workflow Social Poster",
-  description: "Automate social media posts with visual workflows",
-};
+import { Suspense } from "react";
 
 import NextAuthSessionProvider from "@/components/providers/SessionProvider";
 import DataSyncProvider from "@/components/providers/DataSyncProvider";
-import { Toaster } from "@/components/ui/sonner"; // Assuming sonner is used, if not I'll check.
+import { Toaster } from "@/components/ui/sonner";
 
 export default function RootLayout({
   children,
@@ -21,13 +13,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <NextAuthSessionProvider>
-          <DataSyncProvider>
-            {children}
-            <Toaster />
-          </DataSyncProvider>
-        </NextAuthSessionProvider>
+      <head>
+        <title>Workflow Social Poster</title>
+        <meta name="description" content="Automate social media posts with visual workflows" />
+      </head>
+      <body style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
+        <Suspense fallback={null}>
+          <NextAuthSessionProvider>
+            <DataSyncProvider>
+              {children}
+              <Toaster />
+            </DataSyncProvider>
+          </NextAuthSessionProvider>
+        </Suspense>
       </body>
     </html>
   );

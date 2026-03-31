@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getApiAuthContext, unauthorizedText } from "@/lib/apiAuth";
 import { prisma } from "@/lib/prisma";
 
 const normalizeAccessToken = (raw: unknown): string => {
@@ -17,12 +16,12 @@ const normalizeAccessToken = (raw: unknown): string => {
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+export async function GET(req: Request) {
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     const connections = await prisma.externalConnection.findMany({
-        where: { userId: session.user.id }
+        where: { userId: auth.userId }
     });
 
     // Map to store format if needed, or update store to match DB
@@ -50,16 +49,25 @@ export async function GET() {
 export async function POST(req: Request) {
     console.log("POST /api/connections called");
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.id) {
+        const auth = await getApiAuthContext(req);
+        if (!auth?.userId) {
             console.log("Unauthorized: No session");
-            return new NextResponse("Unauthorized", { status: 401 });
+            return unauthorizedText();
         }
 
         const body = await req.json();
         console.log("Request body:", body);
         const { platform, name, accessToken, ...other } = body;
         const normalizedAccessToken = normalizeAccessToken(accessToken);
+
+        if (platform === 'linkedin') {
+            return new NextResponse(
+                JSON.stringify({
+                    error: "LinkedIn connections must be created with 'Connect with LinkedIn'. Manual token entry is not supported.",
+                }),
+                { status: 400, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
 
         if (!platform || !name || !normalizedAccessToken) {
             console.log("Missing fields:", { platform, name, accessToken: !!normalizedAccessToken });
@@ -94,7 +102,7 @@ export async function POST(req: Request) {
         console.log("Creating connection in DB...");
         const connection = await prisma.externalConnection.create({
             data: {
-                userId: session.user.id,
+                userId: auth.userId,
                 provider: platform,
                 name: name,
                 credentials: JSON.stringify({ accessToken: normalizedAccessToken, ...other })
@@ -110,8 +118,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -119,7 +127,7 @@ export async function DELETE(req: Request) {
     if (!id) return new NextResponse("Missing id", { status: 400 });
 
     await prisma.externalConnection.delete({
-        where: { id, userId: session.user.id }
+        where: { id, userId: auth.userId }
     });
 
     return NextResponse.json({ success: true });

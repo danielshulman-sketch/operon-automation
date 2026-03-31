@@ -26,9 +26,13 @@ export const NodeConfigPanel = () => {
             toast.error("Please enter a Spreadsheet ID first");
             return;
         }
+        const trimmed = spreadsheetId.trim();
+        const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        const normalizedSpreadsheetId = match?.[1] || trimmed;
+
         setIsFetchingSheets(true);
         try {
-            const res = await fetch(`/api/google/sheets/meta?spreadsheetId=${spreadsheetId}`);
+            const res = await fetch(`/api/google/sheets/meta?spreadsheetId=${encodeURIComponent(normalizedSpreadsheetId)}`);
             const data = await res.json();
             if (res.ok) {
                 setAvailableSheets(data.sheets || []);
@@ -42,6 +46,13 @@ export const NodeConfigPanel = () => {
         } finally {
             setIsFetchingSheets(false);
         }
+    };
+
+    const getNormalizedSpreadsheetId = (spreadsheetId?: string) => {
+        const trimmed = (spreadsheetId || '').trim();
+        if (!trimmed) return '';
+        const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        return match?.[1] || trimmed;
     };
 
     // Always get the latest version of the node from the nodes array to ensure reactivity
@@ -154,6 +165,36 @@ export const NodeConfigPanel = () => {
             : n));
     }, [selectedNode?.id, selectedNode?.type, selectedNode?.data?.contentSource, selectedNode?.data?.sheetId, selectedNode?.data?.sheetTab, selectedNode?.data?.sheetColumn, selectedNode?.data?.contentColumn, selectedNode?.data?.imageColumn, edges, nodes, setNodes]);
 
+    useEffect(() => {
+        if (!selectedNode) {
+            setAvailableSheets([]);
+            return;
+        }
+
+        const isGlobalSheetsNode = selectedNode.type === 'google-sheets-source';
+        const isEmbeddedSourceSheetsNode =
+            (selectedNode.type === 'ai-generation' || selectedNode.type === 'blog-creation') &&
+            (selectedNode?.data.contentSource as string) === 'google-sheets';
+        const isPublisherSheetsNode = selectedNode.type === 'google-sheets-publisher';
+
+        if (!isGlobalSheetsNode && !isEmbeddedSourceSheetsNode && !isPublisherSheetsNode) {
+            setAvailableSheets([]);
+            return;
+        }
+
+        const sheetId = getNormalizedSpreadsheetId(
+            (selectedNode?.data.sheetId as string)
+            || useWorkflowStore.getState().googleSheetsConfig.spreadsheetId
+        );
+
+        if (!sheetId) {
+            setAvailableSheets([]);
+            return;
+        }
+
+        fetchSheets(sheetId);
+    }, [selectedNode?.id, selectedNode?.type, selectedNode?.data?.contentSource, selectedNode?.data?.sheetId]);
+
     if (!selectedNode) return null;
 
     const handleTestExecution = async () => {
@@ -161,31 +202,37 @@ export const NodeConfigPanel = () => {
         setTestResult(null);
         setTestError(null);
         try {
+            const nodeData = (selectedNode.data || {}) as Record<string, unknown>;
             // Check if we need to substitute variables
-            let finalTaskPrompt = (selectedNode?.data.taskPrompt as string) || '';
-            if (selectedNode.type === 'ai-generation' && selectedNode?.data.testInput) {
-                finalTaskPrompt = finalTaskPrompt.replace('{{content}}', selectedNode?.data.testInput as string);
+            let finalTaskPrompt = (nodeData.taskPrompt as string) || '';
+            if (selectedNode.type === 'ai-generation' && nodeData.testInput) {
+                finalTaskPrompt = finalTaskPrompt.replace('{{content}}', nodeData.testInput as string);
             }
 
             // Determine default provider based on node type
             const defaultProvider = selectedNode.type === 'image-generation' ? 'dalle-3' : 'openai';
+            const payload = {
+                ...nodeData,
+                nodeType: selectedNode.type,
+                masterPrompt: (nodeData.masterPrompt as string) || '',
+                taskPrompt: finalTaskPrompt,
+                provider: (nodeData.provider as string) || defaultProvider,
+                prompt: (nodeData.prompt as string) || '',
+            };
 
             const res = await fetch('/api/test-node', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    nodeType: selectedNode.type,
-                    masterPrompt: selectedNode?.data.masterPrompt || '',
-                    taskPrompt: finalTaskPrompt,
-                    provider: selectedNode?.data.provider || defaultProvider,
-                    prompt: selectedNode?.data.prompt || '',
-                }),
+                body: JSON.stringify(payload),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => null);
+            if (!data) {
+                throw new Error(`Test request failed with status ${res.status}`);
+            }
             if (data.success) {
                 setTestResult(data.result);
             } else {
-                setTestError(data.error || 'Test failed');
+                setTestError(data.error || `Test failed with status ${res.status}`);
             }
         } catch (err: any) {
             setTestError(err.message || 'Network error');
@@ -1069,6 +1116,145 @@ export const NodeConfigPanel = () => {
                         </div>
                     </div>
                 );
+
+            case 'http-request': {
+                const httpHeaders: { key: string; value: string }[] = (selectedNode?.data.headers as any[]) || [];
+                return (
+                    <div className="space-y-4">
+                        <div className="grid gap-2">
+                            <Label>Request URL</Label>
+                            <Input
+                                placeholder="https://api.example.com/webhook"
+                                value={(selectedNode?.data.url as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode?.id
+                                            ? { ...n, data: { ...n.data, url: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>HTTP Method</Label>
+                            <Select
+                                value={(selectedNode?.data.method as string) || 'POST'}
+                                onValueChange={(val) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode?.id
+                                            ? { ...n, data: { ...n.data, method: val } }
+                                            : n
+                                    ));
+                                }}
+                            >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="POST">POST</SelectItem>
+                                    <SelectItem value="PUT">PUT</SelectItem>
+                                    <SelectItem value="PATCH">PATCH</SelectItem>
+                                    <SelectItem value="GET">GET</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Content Type</Label>
+                            <Select
+                                value={(selectedNode?.data.contentType as string) || 'application/json'}
+                                onValueChange={(val) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode?.id
+                                            ? { ...n, data: { ...n.data, contentType: val } }
+                                            : n
+                                    ));
+                                }}
+                            >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="application/json">application/json</SelectItem>
+                                    <SelectItem value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</SelectItem>
+                                    <SelectItem value="text/plain">text/plain</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Request Body Template</Label>
+                            <div className="text-xs text-muted-foreground mb-1">Use <code>{'{{content}}'}</code>, <code>{'{{title}}'}</code>, <code>{'{{slug}}'}</code>, <code>{'{{excerpt}}'}</code>, <code>{'{{date}}'}</code>, <code>{'{{featured_image}}'}</code>, <code>{'{{workflow_id}}'}</code>, and <code>{'{{user_id}}'}</code> in the URL, headers, or body.</div>
+                            <textarea
+                                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                placeholder={'{"message": "{{content}}"}'}
+                                value={(selectedNode?.data.body as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode?.id
+                                            ? { ...n, data: { ...n.data, body: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">If empty, AI-generated text is auto-sent as <code>content</code> field (JSON) or raw text. Use <code>{'{{content}}'}</code> to place it anywhere in the template.</p>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Bearer Token (Optional)</Label>
+                            <Input
+                                placeholder="your-secret-token"
+                                type="password"
+                                value={(selectedNode?.data.bearerToken as string) || ''}
+                                onChange={(e) => {
+                                    setNodes(nodes.map(n =>
+                                        n.id === selectedNode?.id
+                                            ? { ...n, data: { ...n.data, bearerToken: e.target.value } }
+                                            : n
+                                    ));
+                                }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">If set, sent as Authorization: Bearer header. Same-origin <code>/api/...</code> requests also get internal workflow auth automatically.</p>
+                        </div>
+                        <Separator />
+                        <div className="space-y-2">
+                            <Label>Custom Headers</Label>
+                            <p className="text-[10px] text-muted-foreground">Header names and values support the same template variables as the body.</p>
+                            {httpHeaders.map((h, idx) => (
+                                <div key={idx} className="flex gap-2 items-center">
+                                    <Input
+                                        className="h-8 text-xs"
+                                        placeholder="Header-Name"
+                                        value={h.key}
+                                        onChange={(e) => {
+                                            const updated = httpHeaders.map((hh, i) => i === idx ? { ...hh, key: e.target.value } : hh);
+                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, headers: updated } } : n));
+                                        }}
+                                    />
+                                    <Input
+                                        className="h-8 text-xs"
+                                        placeholder="value"
+                                        value={h.value}
+                                        onChange={(e) => {
+                                            const updated = httpHeaders.map((hh, i) => i === idx ? { ...hh, value: e.target.value } : hh);
+                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, headers: updated } } : n));
+                                        }}
+                                    />
+                                    <button
+                                        className="text-red-500 hover:text-red-700"
+                                        onClick={() => {
+                                            const updated = httpHeaders.filter((_, i) => i !== idx);
+                                            setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, headers: updated } } : n));
+                                        }}
+                                    ><Trash2 className="w-3 h-3" /></button>
+                                </div>
+                            ))}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => {
+                                    const updated = [...httpHeaders, { key: '', value: '' }];
+                                    setNodes(nodes.map(n => n.id === selectedNode?.id ? { ...n, data: { ...n.data, headers: updated } } : n));
+                                }}
+                            ><Plus className="w-3 h-3 mr-1" /> Add Header</Button>
+                        </div>
+                    </div>
+                );
+            }
 
             default:
                 return <div className="text-sm text-muted-foreground">Configuration not yet implemented for this node type.</div>;

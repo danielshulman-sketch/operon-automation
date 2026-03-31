@@ -1,0 +1,11 @@
+=== USER ===
+OpenAI: null
+Ext Connections Count: 2
+
+Connection ID: f6aafaaf-4ab5-4df8-883e-94e7c539581e
+Provider: google
+Creds parsing: {"accessToken":"ya29.a0Aa7MYipGbkb1JRz21erAlI4DC8tc6yhikwtNHQ3I4nXBxKQZk5tzU8eZzDyhGZczGGRFjp1Zl55rB2Pk1Nlk_vTOO02EY7JmfXJ-roSzfXEIyFdqGoxnqnO1ayQfPtX4Gpic2B-OBlgdghIIoAEuvAEXr7wJWBADrFG2Fldw8JG7xeklCKURYcrTvnE3PKnNDBYpdwGyaCgYKAdgSARUSFQHGX2MicY5Gu8Llgt4wCM7rMrvM9g0207","refreshToken":"1//01ERhpq6WGQSrCgYIARAAGAESNwF-L9IrXckyeps_DDO0xirKQFEYXQx7pXXO6zd9JRdyzrb3gAO1Y68KrGkjYOE-aTgdHHTtLMA","expiresAt":1774867859915,"scope":"https://www.googleapis.com/auth/spreadsheets","tokenType":"Bearer","email":null,"connectedAt":"2026-03-27T15:56:06.495Z"}
+
+Connection ID: 8c3f9fb3-8e80-4640-9f02-8271a96d4253
+Provider: linkedin
+Creds parsing: {"accessToken":"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"}

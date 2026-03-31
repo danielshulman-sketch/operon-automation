@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getApiAuthContext, unauthorizedJson } from "@/lib/apiAuth";
 import { executeWorkflow } from "@/lib/executeWorkflow";
 
 export async function POST(req: Request, props: { params: Promise<{ workflowId: string }> }) {
     const params = await props.params;
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedJson();
 
     try {
-        const result = await executeWorkflow(params.workflowId, session.user.id, "manual");
+        const result = await executeWorkflow(params.workflowId, auth.userId, "manual", req.url);
         return NextResponse.json(result);
     } catch (error: any) {
         console.error("Workflow execution error:", error);

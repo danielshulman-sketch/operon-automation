@@ -1,5 +1,7 @@
+export const dynamic = 'force-dynamic';
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import DataSyncProvider from "@/components/providers/DataSyncProvider";
+
 
 export default function DashboardLayout({
     children,

@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getApiAuthContext, unauthorizedText } from "@/lib/apiAuth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request, props: { params: Promise<{ workflowId: string }> }) {
     const params = await props.params;
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     const workflow = await prisma.workflow.findUnique({
-        where: { id: params.workflowId, userId: session.user.id }
+        where: { id: params.workflowId, userId: auth.userId }
     });
 
     if (!workflow) return new NextResponse("Not Found", { status: 404 });
@@ -25,8 +24,8 @@ export async function GET(req: Request, props: { params: Promise<{ workflowId: s
 
 export async function PUT(req: Request, props: { params: Promise<{ workflowId: string }> }) {
     const params = await props.params;
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     const body = await req.json();
     // Ensure we don't accidentally transfer ownership or change ID
@@ -39,7 +38,7 @@ export async function PUT(req: Request, props: { params: Promise<{ workflowId: s
     }
 
     const workflow = await prisma.workflow.update({
-        where: { id: params.workflowId, userId: session.user.id },
+        where: { id: params.workflowId, userId: auth.userId },
         data: {
             ...updateData,
             updatedAt: new Date()
@@ -51,11 +50,11 @@ export async function PUT(req: Request, props: { params: Promise<{ workflowId: s
 
 export async function DELETE(req: Request, props: { params: Promise<{ workflowId: string }> }) {
     const params = await props.params;
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return new NextResponse("Unauthorized", { status: 401 });
+    const auth = await getApiAuthContext(req);
+    if (!auth?.userId) return unauthorizedText();
 
     await prisma.workflow.delete({
-        where: { id: params.workflowId, userId: session.user.id }
+        where: { id: params.workflowId, userId: auth.userId }
     });
 
     return NextResponse.json({ success: true });

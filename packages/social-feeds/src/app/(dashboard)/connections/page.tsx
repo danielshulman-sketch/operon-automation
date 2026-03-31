@@ -1,4 +1,5 @@
-﻿'use client';
+'use client';
+export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,8 @@ import { toast } from 'sonner';
 
 function ConnectionsPageContent() {
     const store = useWorkflowStore();
+    const [isFetchingSheets, setIsFetchingSheets] = useState(false);
+    const [availableSheets, setAvailableSheets] = useState<string[]>([]);
     const [newAccountName, setNewAccountName] = useState('');
     const [newAccountPlatform, setNewAccountPlatform] = useState<'facebook' | 'linkedin' | 'instagram' | 'threads' | 'wordpress' | 'wix' | 'squarespace'>('facebook');
     const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
@@ -48,21 +51,175 @@ function ConnectionsPageContent() {
     const [facebookPages, setFacebookPages] = useState<any[]>([]);
     const [isFetchingPages, setIsFetchingPages] = useState(false);
 
+    const normalizeAccessToken = (raw: string) => {
+        let token = raw.trim();
+        if (!token) return '';
+
+        token = token.replace(/^Bearer\s+/i, '').replace(/^["']|["']$/g, '').trim();
+
+        if (token.startsWith('{') || token.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(token);
+                const candidate =
+                    parsed?.access_token ??
+                    parsed?.accessToken ??
+                    parsed?.token ??
+                    parsed?.authResponse?.accessToken ??
+                    '';
+                token = typeof candidate === 'string' ? candidate : token;
+            } catch {
+                // Keep original token if JSON parsing fails.
+            }
+        }
+
+        if (/^https?:\/\//i.test(token)) {
+            try {
+                const parsedUrl = new URL(token);
+                const candidate = parsedUrl.searchParams.get('access_token');
+                if (candidate) token = candidate;
+            } catch {
+                // Keep original token if URL parsing fails.
+            }
+        } else if (token.includes('access_token=')) {
+            try {
+                const parsedParams = new URLSearchParams(token.startsWith('?') ? token.slice(1) : token);
+                const candidate = parsedParams.get('access_token');
+                if (candidate) token = candidate;
+            } catch {
+                // Keep original token if search params parsing fails.
+            }
+        }
+
+        return token.replace(/\s+/g, '');
+    };
+
+    const normalizeSpreadsheetId = (raw: string) => {
+        const trimmed = raw.trim();
+        if (!trimmed) return '';
+        const match = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        return match?.[1] || trimmed;
+    };
+
+    const fetchSheets = async (spreadsheetId: string) => {
+        const normalizedSpreadsheetId = normalizeSpreadsheetId(spreadsheetId);
+        if (!normalizedSpreadsheetId) {
+            toast.error('Please enter a Spreadsheet ID first.');
+            return;
+        }
+
+        setIsFetchingSheets(true);
+        try {
+            const res = await fetch(`/api/google/sheets/meta?spreadsheetId=${encodeURIComponent(normalizedSpreadsheetId)}`);
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data?.error || 'Failed to fetch sheets');
+            }
+
+            const sheets = Array.isArray(data.sheets) ? data.sheets : [];
+            setAvailableSheets(sheets);
+
+            if (sheets.length > 0 && !sheets.includes(store.googleSheetsConfig.sheetName)) {
+                store.updateGoogleSheetsConfig({ sheetName: sheets[0] });
+            }
+
+            toast.success(`Found ${sheets.length} sheet${sheets.length === 1 ? '' : 's'}`);
+        } catch (error: any) {
+            console.error(error);
+            setAvailableSheets([]);
+            toast.error(error?.message || 'Failed to fetch sheets');
+        } finally {
+            setIsFetchingSheets(false);
+        }
+    };
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const success = params.get('success');
+        const error = params.get('error');
+
+        if (!success && !error) return;
+
+        if (success === 'facebook') {
+            const added = Number(params.get('added') || 0);
+            const igAdded = Number(params.get('igAdded') || 0);
+            if (added > 0 || igAdded > 0) {
+                toast.success(`Connected ${added} Facebook page(s) and ${igAdded} Instagram account(s).`);
+            } else {
+                toast.success('Facebook connected.');
+            }
+        } else if (success === 'linkedin') {
+            toast.success('LinkedIn connected.');
+        } else if (success === 'google') {
+            toast.success('Google connected.');
+        }
+
+        if (error) {
+            const decodedError = error;
+            if (decodedError === 'missing_facebook_config') {
+                toast.error('Facebook App ID/Secret missing. Add them in Settings first.');
+            } else if (decodedError === 'missing_linkedin_config') {
+                toast.error('LinkedIn Client ID/Secret missing. Add them in Settings first.');
+            } else if (decodedError === 'linkedin_profile_failed') {
+                toast.error('LinkedIn authorization completed, but the profile lookup failed. Try connecting again.');
+            } else if (decodedError.startsWith('token_failed')) {
+                const detail = decodedError.split(':').slice(1).join(':').trim();
+                toast.error(detail
+                    ? `Facebook token exchange failed: ${detail}`
+                    : 'Facebook token exchange failed. Check your app credentials and redirect URI.');
+            } else if (decodedError === 'fetch_pages_failed') {
+                toast.error('Facebook login succeeded but pages could not be loaded. Re-check permissions and page access.');
+            } else {
+                toast.error(`Facebook connection failed: ${decodedError}`);
+            }
+        }
+
+        window.history.replaceState({}, '', '/connections');
+    }, []);
+
+    useEffect(() => {
+        if (!store.googleSheetsConfig.spreadsheetId) {
+            setAvailableSheets([]);
+            return;
+        }
+
+        fetchSheets(store.googleSheetsConfig.spreadsheetId);
+    }, [store.googleSheetsConfig.spreadsheetId]);
+
+    const connectWithFacebookOAuth = () => {
+        window.location.href = '/api/auth/facebook';
+    };
+
     const handleFetchPagesWithToken = async () => {
-        if (!newAccountToken) {
+        const token = normalizeAccessToken(newAccountToken);
+        if (!token) {
             toast.error("Please enter a Facebook Graph API Token first.");
             return;
         }
-        await fetchFacebookPages(newAccountToken);
+        if (/^\d+$/.test(token)) {
+            toast.error("This looks like a numeric ID, not a Facebook access token. Use the full token string from Facebook.");
+            return;
+        }
+        if (token.length < 40) {
+            toast.error("Token looks too short. Paste the full Facebook access token (usually starts with 'EA').");
+            return;
+        }
+        await fetchFacebookPages(token);
     };
 
     const fetchFacebookPages = async (overrideToken?: string) => {
-        const tokenToUse = overrideToken || newAccountToken;
+        const tokenToUse = normalizeAccessToken(overrideToken || newAccountToken);
         if (!tokenToUse) return;
 
         setIsFetchingPages(true);
         try {
-            const res = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${tokenToUse}`);
+            const pageListUrl = new URL('https://graph.facebook.com/me/accounts');
+            pageListUrl.searchParams.set('fields', 'id,name,access_token,category,instagram_business_account');
+            const res = await fetch(pageListUrl.toString(), {
+                headers: {
+                    Authorization: `Bearer ${tokenToUse}`,
+                },
+            });
             const data = await res.json();
 
             if (data.error) {
@@ -83,9 +240,13 @@ function ConnectionsPageContent() {
                     if (newAccountPlatform === 'instagram') {
                         for (const page of data.data) {
                             try {
-                                const igRes = await fetch(
-                                    `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account{id,name,username,profile_picture_url}&access_token=${page.access_token}`
-                                );
+                                const igUrl = new URL(`https://graph.facebook.com/${page.id}`);
+                                igUrl.searchParams.set('fields', 'instagram_business_account{id,name,username,profile_picture_url}');
+                                const igRes = await fetch(igUrl.toString(), {
+                                    headers: {
+                                        Authorization: `Bearer ${page.access_token}`,
+                                    },
+                                });
                                 const igData = await igRes.json();
                                 if (igData.instagram_business_account) {
                                     const ig = igData.instagram_business_account;
@@ -146,7 +307,10 @@ function ConnectionsPageContent() {
                 })
             });
 
-            if (!res.ok) throw new Error("Failed to save connection");
+            if (!res.ok) {
+                const data = await res.json().catch(() => null);
+                throw new Error(data?.error || "Failed to save connection");
+            }
 
             const newConnection = await res.json();
 
@@ -200,9 +364,9 @@ function ConnectionsPageContent() {
             setNewAccountToken('');
             setIsAddAccountOpen(false);
             toast.success("Account Connected!");
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast.error("Failed to connect account");
+            toast.error(error?.message || "Failed to connect account");
         }
     };
 
@@ -279,8 +443,21 @@ function ConnectionsPageContent() {
 
                                         {(newAccountPlatform === 'facebook' || newAccountPlatform === 'instagram') ? (
                                             <div className="flex flex-col gap-3">
+                                                <Button
+                                                    onClick={connectWithFacebookOAuth}
+                                                    className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white"
+                                                >
+                                                    <Facebook className="mr-2 h-4 w-4" />
+                                                    Connect with Facebook
+                                                </Button>
+                                                <p className="text-[10px] text-muted-foreground text-center">
+                                                    Recommended. This imports Facebook Pages and linked Instagram accounts automatically.
+                                                </p>
+
+                                                <Separator />
+
                                                 <div className="bg-muted/50 p-3 rounded-md text-xs space-y-2 mb-2">
-                                                    <p className="font-semibold">How to connect:</p>
+                                                    <p className="font-semibold">Manual fallback:</p>
                                                     <ol className="list-decimal pl-4 space-y-1 text-muted-foreground">
                                                         <li>Go to the <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Facebook Graph API Explorer</a></li>
                                                         <li>Select your App, and set <strong>User or Page</strong> to "User Token"</li>
@@ -355,7 +532,7 @@ function ConnectionsPageContent() {
                                     )}
                                 </div>
                                 <DialogFooter>
-                                    {newAccountPlatform !== 'facebook' && newAccountPlatform !== 'instagram' && (
+                                    {newAccountPlatform !== 'facebook' && newAccountPlatform !== 'instagram' && newAccountPlatform !== 'linkedin' && (
                                         <Button onClick={handleAddAccount}>Connect Account</Button>
                                     )}
                                 </DialogFooter>
@@ -438,19 +615,55 @@ function ConnectionsPageContent() {
 
                             <div className="grid gap-2">
                                 <Label>Spreadsheet ID / URL</Label>
-                                <Input
-                                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                                    value={store.googleSheetsConfig.spreadsheetId}
-                                    onChange={(e) => store.updateGoogleSheetsConfig({ spreadsheetId: e.target.value })}
-                                />
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                                        value={store.googleSheetsConfig.spreadsheetId}
+                                        onChange={(e) => store.updateGoogleSheetsConfig({ spreadsheetId: e.target.value })}
+                                        onBlur={() => {
+                                            if (store.googleSheetsConfig.spreadsheetId) {
+                                                fetchSheets(store.googleSheetsConfig.spreadsheetId);
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        variant="secondary"
+                                        type="button"
+                                        disabled={isFetchingSheets || !store.googleSheetsConfig.spreadsheetId}
+                                        onClick={() => fetchSheets(store.googleSheetsConfig.spreadsheetId)}
+                                    >
+                                        {isFetchingSheets ? 'Fetching...' : 'Fetch'}
+                                    </Button>
+                                </div>
                             </div>
                             <div className="grid gap-2">
                                 <Label>Worksheet Name</Label>
-                                <Input
-                                    placeholder="Sheet1"
-                                    value={store.googleSheetsConfig.sheetName}
-                                    onChange={(e) => store.updateGoogleSheetsConfig({ sheetName: e.target.value })}
-                                />
+                                {availableSheets.length > 0 ? (
+                                    <Select
+                                        value={store.googleSheetsConfig.sheetName || undefined}
+                                        onValueChange={(value) => store.updateGoogleSheetsConfig({ sheetName: value })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a sheet tab" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableSheets.map((sheet) => (
+                                                <SelectItem key={sheet} value={sheet}>{sheet}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <Input
+                                        placeholder="Sheet1"
+                                        value={store.googleSheetsConfig.sheetName}
+                                        onChange={(e) => store.updateGoogleSheetsConfig({ sheetName: e.target.value })}
+                                    />
+                                )}
+                                {availableSheets.length === 0 && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Enter a Spreadsheet URL and fetch tabs to choose from a dropdown.
+                                    </p>
+                                )}
                             </div>
 
                             <Separator />

@@ -1,0 +1,8 @@
+{
+  "title": "A Practical Content Workflow for a Vercel Help Site",
+  "content": "## Keep the content model simple\nFor a small help center, start with repo-based content. A post file can hold the title, slug, excerpt, date, and body.\n\n## Choose one rendering path\nUse a single page component for blog posts and feed it either local file content or CMS data. That keeps your design and SEO output consistent.\n\n## Prefer HTTPS fetches for external content\nIf your editors use a CMS, your Next.js app should fetch the published data over HTTPS in a server component or route handler. You do not need the Node `http` module for this.\n\n## Deploy on every approved change\nPair GitHub with Vercel so content changes get a preview deployment before you merge them to production.",
+  "featured_image": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=1200",
+  "excerpt": "A clean starter workflow for managing help-center blog content in a Vercel-hosted Next.js app.",
+  "slug": "vercel-help-site-content-workflow",
+  "date": "2026-03-30 12:20:00"
+}

@@ -3,14 +3,25 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = 'force-dynamic';
 
+const normalizeEnv = (value?: string | null) =>
+    (value || "").trim().replace(/^["']|["']$/g, "");
+
+const isPlaceholder = (value: string) => {
+    const normalized = value.toLowerCase();
+    return normalized.includes("your_fb_app_id_here")
+        || normalized.includes("your_fb_app_secret_here")
+        || normalized.includes("your_facebook_app_id")
+        || normalized.includes("your_facebook_app_secret");
+};
+
 export async function GET(req: Request) {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     const errorDescription = url.searchParams.get('error_description');
-
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const requestOrigin = url.origin;
+    const baseUrl = normalizeEnv(process.env.NEXTAUTH_URL) || requestOrigin;
 
     if (error) {
         return NextResponse.redirect(`${baseUrl}/connections?error=${encodeURIComponent(errorDescription || error)}`);
@@ -33,13 +44,15 @@ export async function GET(req: Request) {
         select: { facebookAppId: true, facebookAppSecret: true }
     });
 
-    let appId = prismaUser?.facebookAppId;
-    let appSecret = prismaUser?.facebookAppSecret;
+    const userAppId = normalizeEnv(prismaUser?.facebookAppId);
+    const userAppSecret = normalizeEnv(prismaUser?.facebookAppSecret);
+    const envAppId = normalizeEnv(process.env.NEXT_PUBLIC_FACEBOOK_APP_ID) || normalizeEnv(process.env.FACEBOOK_APP_ID);
+    const envAppSecret = normalizeEnv(process.env.FACEBOOK_APP_SECRET) || normalizeEnv(process.env.FACEBOOK_PAGE_SECRET);
 
-    appId = appId || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || process.env.FACEBOOK_APP_ID;
-    appSecret = appSecret || process.env.FACEBOOK_APP_SECRET || process.env.FACEBOOK_PAGE_SECRET;
+    const appId = userAppId || envAppId;
+    const appSecret = userAppSecret || envAppSecret;
 
-    if (!appId || !appSecret || appId.trim() === '' || appSecret.trim() === '') {
+    if (!appId || !appSecret || isPlaceholder(appId) || isPlaceholder(appSecret)) {
         return NextResponse.redirect(`${baseUrl}/settings?error=missing_facebook_config`);
     }
 
@@ -47,23 +60,37 @@ export async function GET(req: Request) {
 
     try {
         // 1. Exchange code for access token
-        const tokenRes = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`);
+        const tokenUrl = new URL('https://graph.facebook.com/oauth/access_token');
+        tokenUrl.searchParams.set('client_id', appId);
+        tokenUrl.searchParams.set('redirect_uri', redirectUri);
+        tokenUrl.searchParams.set('client_secret', appSecret);
+        tokenUrl.searchParams.set('code', code);
+        const tokenRes = await fetch(tokenUrl.toString());
 
         const tokenData = await tokenRes.json();
         if (!tokenRes.ok || !tokenData.access_token) {
             console.error('Facebook token error:', tokenData);
-            return NextResponse.redirect(`${baseUrl}/connections?error=token_failed`);
+            const detail = tokenData?.error?.message || tokenData?.error_description || '';
+            return NextResponse.redirect(`${baseUrl}/connections?error=${encodeURIComponent(`token_failed:${detail}`)}`);
         }
 
         const userAccessToken = tokenData.access_token;
 
         // 2. Exchange for a long-lived user token
-        const longTokenRes = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${userAccessToken}`);
+        const longTokenUrl = new URL('https://graph.facebook.com/oauth/access_token');
+        longTokenUrl.searchParams.set('grant_type', 'fb_exchange_token');
+        longTokenUrl.searchParams.set('client_id', appId);
+        longTokenUrl.searchParams.set('client_secret', appSecret);
+        longTokenUrl.searchParams.set('fb_exchange_token', userAccessToken);
+        const longTokenRes = await fetch(longTokenUrl.toString());
         const longTokenData = await longTokenRes.json();
         const finalUserToken = longTokenData.access_token || userAccessToken;
 
         // 3. Fetch user's pages
-        const pagesRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${finalUserToken}&fields=id,name,access_token,instagram_business_account`);
+        const pagesUrl = new URL('https://graph.facebook.com/me/accounts');
+        pagesUrl.searchParams.set('access_token', finalUserToken);
+        pagesUrl.searchParams.set('fields', 'id,name,access_token,instagram_business_account');
+        const pagesRes = await fetch(pagesUrl.toString());
         const pagesData = await pagesRes.json();
 
         if (!pagesRes.ok) {

@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
@@ -6,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, MoreHorizontal, Edit, Trash2, Loader2, Pencil, Check, X } from 'lucide-react';
+import { Plus, MoreHorizontal, Edit, Trash2, Loader2, Pencil, Check, X, Copy } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +31,7 @@ export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +71,7 @@ export default function WorkflowsPage() {
 
       const workflow = await res.json();
       router.push(`/editor/${workflow.id}`);
-    } catch (error) {
+    } catch {
       toast.error("Could not create workflow. Check your plan.");
       setIsCreating(false);
     }
@@ -81,8 +83,29 @@ export default function WorkflowsPage() {
       await fetch(`/api/workflows/${id}`, { method: 'DELETE' });
       setWorkflows(prev => prev.filter(w => w.id !== id));
       toast.success("Workflow deleted");
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete");
+    }
+  };
+
+  const handleDuplicate = async (workflow: Workflow) => {
+    setDuplicatingId(workflow.id);
+    try {
+      const res = await fetch(`/api/workflows/${workflow.id}/duplicate`, {
+        method: 'POST',
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to duplicate workflow');
+      }
+
+      const duplicatedWorkflow = await res.json();
+      setWorkflows((prev) => [duplicatedWorkflow, ...prev]);
+      toast.success('Workflow duplicated');
+    } catch {
+      toast.error('Failed to duplicate workflow');
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -244,6 +267,14 @@ export default function WorkflowsPage() {
                         <Link href={`/editor/${workflow.id}`} className="flex items-center w-full">
                           <Edit className="mr-2 h-4 w-4" /> Edit
                         </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDuplicate(workflow)} disabled={duplicatingId === workflow.id}>
+                        {duplicatingId === workflow.id ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Copy className="mr-2 h-4 w-4" />
+                        )}
+                        Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => startRename(workflow)}>
                         <Pencil className="mr-2 h-4 w-4" /> Rename
