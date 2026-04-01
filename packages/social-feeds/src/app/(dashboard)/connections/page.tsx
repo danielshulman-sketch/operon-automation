@@ -451,8 +451,13 @@ function ConnectionsPageContent() {
                                                     Connect with Facebook
                                                 </Button>
                                                 <p className="text-[10px] text-muted-foreground text-center">
-                                                    Recommended. This imports Facebook Pages and linked Instagram accounts automatically.
+                                                    ✨ Recommended. This imports Facebook Pages and linked Instagram accounts automatically. Takes 30 seconds.
                                                 </p>
+                                                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                                                    <p className="text-xs text-blue-800 dark:text-blue-300">
+                                                        <strong>First time?</strong> See the <a href="/FACEBOOK_INSTAGRAM_SETUP.md" target="_blank" className="underline font-semibold">5-minute setup guide</a>
+                                                    </p>
+                                                </div>
 
                                                 <Separator />
 

@@ -41,6 +41,18 @@ pnpm dev
 
 🚧 **Coming Soon** - Workflows, AI Chat, IMAP/SMTP
 
+## Integration Setup
+
+### Facebook & Instagram
+Connect your Facebook Pages and Instagram Business Accounts for posting and content management.
+📖 **[Facebook/Instagram Setup Guide](./FACEBOOK_INSTAGRAM_SETUP.md)**
+
+### LinkedIn
+Connect your LinkedIn profile for social media posting.
+
+### Google Sheets
+Use Google Sheets as a content source for your workflows.
+
 ## Documentation
 
 See full setup guide and API documentation in the project files.
