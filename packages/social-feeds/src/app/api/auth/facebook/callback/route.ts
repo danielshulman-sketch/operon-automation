@@ -49,6 +49,7 @@ export async function GET(req: Request) {
     const envAppId = normalizeEnv(process.env.NEXT_PUBLIC_FACEBOOK_APP_ID) || normalizeEnv(process.env.FACEBOOK_APP_ID);
     const envAppSecret = normalizeEnv(process.env.FACEBOOK_APP_SECRET) || normalizeEnv(process.env.FACEBOOK_PAGE_SECRET);
 
+    // User's own credentials take priority, fallback to environment variables
     const appId = userAppId || envAppId;
     const appSecret = userAppSecret || envAppSecret;
 

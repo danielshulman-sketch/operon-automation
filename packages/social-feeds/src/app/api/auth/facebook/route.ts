@@ -33,10 +33,9 @@ export async function GET(req: Request) {
 
     const userAppId = normalizeEnv(prismaUser?.facebookAppId);
     const envAppId = normalizeEnv(process.env.NEXT_PUBLIC_FACEBOOK_APP_ID) || normalizeEnv(process.env.FACEBOOK_APP_ID);
+    // User's own app ID takes priority, falls back to environment variable
     const appId = userAppId || envAppId;
 
-    // Skip app domain validation - Facebook app domains field has known issues
-    // OAuth redirect URI is what actually matters
     if (!appId || isPlaceholder(appId)) {
         return NextResponse.redirect(`${baseUrl}/settings?error=missing_facebook_config`);
     }
