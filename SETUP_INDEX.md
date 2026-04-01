@@ -4,7 +4,16 @@ Welcome! Here's a guide to all the setup documentation to get your app connected
 
 ## 🚀 Start Here (Choose Your Path)
 
-### 👤 I'm setting up for the first time
+### 👤 I'm a User (No Vercel Access)
+**Time: 5 minutes**
+
+1. Read [FACEBOOK_INSTAGRAM_USER_SETUP.md](./FACEBOOK_INSTAGRAM_USER_SETUP.md) - Step by step
+2. Go to Settings in the app
+3. Add your Facebook App credentials
+4. Go to Connections and click "Connect with Facebook"
+5. Done!
+
+### 👨‍💼 I'm an Admin Setting Up for My Team
 **Time: 25 minutes**
 
 1. Read [QUICK_REFERENCE.md](./QUICK_REFERENCE.md) (2 min) - Overview of what you need
@@ -16,7 +25,7 @@ Welcome! Here's a guide to all the setup documentation to get your app connected
 
 1. Go to [FACEBOOK_INSTAGRAM_SETUP.md](./FACEBOOK_INSTAGRAM_SETUP.md) → Quick Start section
 2. Get your credentials from Facebook Developers
-3. Add to `.env.local`
+3. Add to `.env.local` or Vercel
 4. Restart your server
 5. Click "Connect with Facebook" in the app
 
@@ -52,17 +61,23 @@ Read [FACEBOOK_INSTAGRAM_SETUP.md](./FACEBOOK_INSTAGRAM_SETUP.md) - Complete com
   - Tips and tricks
 
 ### Setup Instructions
-- **[SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md)** - Detailed step-by-step
+- **[SETUP_CHECKLIST.md](./SETUP_CHECKLIST.md)** - Detailed step-by-step (Admin)
   - Phase 1-10 setup process
   - What to copy/paste where
   - Verification at each step
   - Quick troubleshooting
 
-- **[FACEBOOK_INSTAGRAM_SETUP.md](./FACEBOOK_INSTAGRAM_SETUP.md)** - Facebook/Instagram deep dive
+- **[FACEBOOK_INSTAGRAM_SETUP.md](./FACEBOOK_INSTAGRAM_SETUP.md)** - Facebook/Instagram deep dive (Admin)
   - How to get credentials
   - Configuration details
   - How it all works
   - Comprehensive troubleshooting
+
+- **[FACEBOOK_INSTAGRAM_USER_SETUP.md](./FACEBOOK_INSTAGRAM_USER_SETUP.md)** - For Individual Users
+  - No Vercel access needed
+  - Add credentials in Settings
+  - Perfect for non-admin users
+  - 2-minute setup
 
 ### Overview & Planning
 - **[SOCIAL_CONNECTIONS_SUMMARY.md](./SOCIAL_CONNECTIONS_SUMMARY.md)** - What's built, what's next
@@ -70,6 +85,12 @@ Read [FACEBOOK_INSTAGRAM_SETUP.md](./FACEBOOK_INSTAGRAM_SETUP.md) - Complete com
   - Setup overview
   - Common issues
   - Implementation status
+
+- **[FACEBOOK_SETUP_SUMMARY.md](./FACEBOOK_SETUP_SUMMARY.md)** - Three setup options explained
+  - Option 1: Admin via environment variables
+  - Option 2: User credentials in Settings
+  - Option 3: Hybrid (recommended)
+  - Comparison and recommendations
 
 ### Environment Configuration
 - **[.env.example](./.env.example)** - Template with all variables
