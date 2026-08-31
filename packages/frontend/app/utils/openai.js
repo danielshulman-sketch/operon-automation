@@ -400,16 +400,23 @@ function parseDataUrl(dataUrl) {
     return { mediaType: match[1], base64: match[2] };
 }
 
-const FOOD_ANALYSIS_SYSTEM_PROMPT = `You are a nutrition assistant helping someone track links between what they eat/drink and their symptoms. Look at the photo (if provided) and description of a food or drink item.
+const FOOD_ANALYSIS_SYSTEM_PROMPT = `You are a nutrition assistant helping someone track links between what they eat/drink and their symptoms. Their goal is finding specific ingredients that might be triggering symptoms, so ingredient-level detail matters more than a generic dish name.
+
+Look at the photo (if provided) and description of a food or drink item:
+- If the photo shows packaging, a wrapper, a menu, or a nutrition/ingredients label with legible text, read the ingredients list closely and extract the individual ingredients from it verbatim (e.g. "wheat flour", "monosodium glutamate", "soy lecithin", "sulfites", "red 40", "high fructose corn syrup") — this is the most reliable source, prefer it over guessing.
+- If no label is visible, infer the most likely individual ingredients from what the dish/drink visibly is or from the description (e.g. a burger implies "beef", "wheat bun", "cheese"). Mark this lower-confidence case with "ingredients_from_label": false.
+- If you found and read an actual ingredients list, set "ingredients_from_label": true.
 
 Respond in JSON format:
 {
   "items": ["short name of each distinct food/drink identified, e.g. 'coffee', 'fried chicken'"],
+  "ingredients": ["individual ingredients, as specific as possible, lowercase, one per entry"],
+  "ingredients_from_label": true|false,
   "category": "meal|snack|drink|dessert|other",
   "possible_triggers": ["common symptom triggers present, choose from: dairy, gluten, caffeine, alcohol, spicy, high-sugar, processed, fried, high-fat, artificial-sweetener, histamine, nightshade, citrus, none"],
   "summary": "one short sentence describing the item(s)"
 }
-Only use information visible in the photo or provided in the description. If you cannot tell, make a reasonable best guess from the description alone.`;
+Base "possible_triggers" on the actual ingredients you listed wherever possible (e.g. "milk" or "whey" in ingredients implies dairy; "monosodium glutamate" implies processed). Only use information visible in the photo or provided in the description. If you cannot tell, make a reasonable best guess from the description alone.`;
 
 export async function analyzeFoodImage({ orgId, imageDataUrl, description }) {
     let settings;

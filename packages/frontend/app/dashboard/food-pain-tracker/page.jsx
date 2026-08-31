@@ -323,6 +323,9 @@ export default function FoodPainTrackerPage() {
                                 className="hidden"
                             />
                         </label>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 -mt-2 font-inter">
+                            Tip: for packaged food or drink, also photograph the ingredients label — it gives the best chance of spotting a specific trigger.
+                        </p>
 
                         <textarea
                             value={description}
@@ -523,6 +526,36 @@ export default function FoodPainTrackerPage() {
                                                 </span>
                                             </button>
                                         ) : null}
+
+                                        {log.ai_analysis?.ingredients?.length > 0 && (
+                                            <div className="mb-2">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-inter">
+                                                        Ingredients
+                                                    </p>
+                                                    {log.ai_analysis.ingredients_from_label && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-inter">
+                                                            read from label
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {log.ai_analysis.ingredients.slice(0, 8).map((ingredient, idx) => (
+                                                        <span
+                                                            key={`${ingredient}-${idx}`}
+                                                            className="px-2 py-0.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 font-inter"
+                                                        >
+                                                            {ingredient}
+                                                        </span>
+                                                    ))}
+                                                    {log.ai_analysis.ingredients.length > 8 && (
+                                                        <span className="px-2 py-0.5 text-xs text-gray-400 font-inter">
+                                                            +{log.ai_analysis.ingredients.length - 8} more
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {log.ai_analysis?.possible_triggers?.filter((t) => t !== 'none').length > 0 && (
                                             <div className="flex flex-wrap gap-1.5">

@@ -18,6 +18,9 @@ function extractTagsForLog(foodLog) {
         (analysis.items || []).forEach((item) => {
             if (item) tags.add(String(item).toLowerCase().trim());
         });
+        (analysis.ingredients || []).forEach((ingredient) => {
+            if (ingredient) tags.add(String(ingredient).toLowerCase().trim());
+        });
         (analysis.possible_triggers || []).forEach((trigger) => {
             if (trigger && trigger !== 'none') tags.add(String(trigger).toLowerCase().trim());
         });
