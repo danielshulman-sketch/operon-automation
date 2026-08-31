@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Camera, Trash2, Sparkles, Utensils, Activity, X } from 'lucide-react';
+import { Camera, Trash2, Sparkles, Utensils, Activity, X, Pencil, AlertCircle } from 'lucide-react';
 
 const MAX_IMAGE_DIMENSION = 1024;
 const IMAGE_QUALITY = 0.8;
@@ -85,6 +85,10 @@ export default function FoodPainTrackerPage() {
     const [analysis, setAnalysis] = useState(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState(null);
+
+    const [editingLogId, setEditingLogId] = useState(null);
+    const [editDescription, setEditDescription] = useState('');
+    const [savingEdit, setSavingEdit] = useState(false);
 
     const authHeaders = useCallback(() => {
         const token = localStorage.getItem('auth_token');
@@ -183,6 +187,37 @@ export default function FoodPainTrackerPage() {
             console.error('Failed to save food log:', error);
         }
         setSavingFood(false);
+    };
+
+    const handleStartEdit = (log) => {
+        setEditingLogId(log.id);
+        setEditDescription(log.description || '');
+    };
+
+    const handleCancelEdit = () => {
+        setEditingLogId(null);
+        setEditDescription('');
+    };
+
+    const handleSaveEdit = async (id) => {
+        if (!editDescription.trim()) return;
+        setSavingEdit(true);
+        try {
+            const res = await fetch(`/api/food-logs/${id}`, {
+                method: 'PATCH',
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: editDescription.trim() }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setFoodLogs((prev) => prev.map((log) => (log.id === id ? data.foodLog : log)));
+                setEditingLogId(null);
+                setEditDescription('');
+            }
+        } catch (error) {
+            console.error('Failed to update food log description:', error);
+        }
+        setSavingEdit(false);
     };
 
     const handleDeleteFoodLog = async (id) => {
@@ -410,48 +445,103 @@ export default function FoodPainTrackerPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {foodLogs.map((log) => (
-                            <div
-                                key={log.id}
-                                className="rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] overflow-hidden"
-                            >
-                                {log.image_data && (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={log.image_data} alt="Food log" className="w-full h-40 object-cover" />
-                                )}
-                                <div className="p-4">
-                                    <div className="flex items-start justify-between gap-2 mb-1">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 font-inter">
-                                            {new Date(log.log_date).toLocaleDateString()}
-                                        </p>
-                                        <button
-                                            onClick={() => handleDeleteFoodLog(log.id)}
-                                            className="text-gray-400 hover:text-red-500 transition-colors"
-                                            aria-label="Delete entry"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                    {log.description && (
-                                        <p className="text-sm text-black dark:text-white font-inter mb-2">{log.description}</p>
+                        {foodLogs.map((log) => {
+                            const isEditing = editingLogId === log.id;
+                            const wasUnrecognized = !log.description && (!log.ai_analysis || !(log.ai_analysis.items?.length));
+
+                            return (
+                                <div
+                                    key={log.id}
+                                    className="rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] overflow-hidden"
+                                >
+                                    {log.image_data && (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img src={log.image_data} alt="Food log" className="w-full h-40 object-cover" />
                                     )}
-                                    {log.ai_analysis?.possible_triggers?.filter((t) => t !== 'none').length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {log.ai_analysis.possible_triggers
-                                                .filter((t) => t !== 'none')
-                                                .map((trigger) => (
-                                                    <span
-                                                        key={trigger}
-                                                        className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#F3F3F3] dark:bg-[#151515] text-gray-600 dark:text-gray-400 font-inter"
+                                    <div className="p-4">
+                                        <div className="flex items-start justify-between gap-2 mb-1">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 font-inter">
+                                                {new Date(log.log_date).toLocaleDateString()}
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                {!isEditing && (
+                                                    <button
+                                                        onClick={() => handleStartEdit(log)}
+                                                        className="text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                                        aria-label="Edit description"
                                                     >
-                                                        {trigger}
-                                                    </span>
-                                                ))}
+                                                        <Pencil className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => handleDeleteFoodLog(log.id)}
+                                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                                    aria-label="Delete entry"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
                                         </div>
-                                    )}
+
+                                        {isEditing ? (
+                                            <div className="mb-2">
+                                                <textarea
+                                                    value={editDescription}
+                                                    onChange={(e) => setEditDescription(e.target.value)}
+                                                    rows={2}
+                                                    autoFocus
+                                                    placeholder="Describe what this is..."
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-transparent text-black dark:text-white focus:outline-none focus:border-black dark:focus:border-white transition-colors resize-none text-sm"
+                                                />
+                                                <div className="flex items-center gap-2 mt-2">
+                                                    <button
+                                                        onClick={() => handleSaveEdit(log.id)}
+                                                        disabled={savingEdit || !editDescription.trim()}
+                                                        className="px-3 py-1.5 rounded-lg bg-black dark:bg-white text-white dark:text-black text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                                                    >
+                                                        {savingEdit ? 'Saving...' : 'Save'}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleCancelEdit}
+                                                        disabled={savingEdit}
+                                                        className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-black dark:text-white text-xs font-semibold hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : log.description ? (
+                                            <p className="text-sm text-black dark:text-white font-inter mb-2">{log.description}</p>
+                                        ) : wasUnrecognized ? (
+                                            <button
+                                                onClick={() => handleStartEdit(log)}
+                                                className="w-full text-left flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 px-3 py-2 mb-2 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+                                            >
+                                                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                                                <span className="text-xs text-amber-800 dark:text-amber-300 font-inter">
+                                                    We couldn&apos;t recognize this from the photo. Tap to add a description.
+                                                </span>
+                                            </button>
+                                        ) : null}
+
+                                        {log.ai_analysis?.possible_triggers?.filter((t) => t !== 'none').length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {log.ai_analysis.possible_triggers
+                                                    .filter((t) => t !== 'none')
+                                                    .map((trigger) => (
+                                                        <span
+                                                            key={trigger}
+                                                            className="px-2 py-0.5 rounded-full text-xs font-medium bg-[#F3F3F3] dark:bg-[#151515] text-gray-600 dark:text-gray-400 font-inter"
+                                                        >
+                                                            {trigger}
+                                                        </span>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
