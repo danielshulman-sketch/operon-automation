@@ -392,6 +392,104 @@ Respond in JSON format:
     });
 }
 
+function parseDataUrl(dataUrl) {
+    const match = /^data:(.+?);base64,(.+)$/.exec(dataUrl || '');
+    if (!match) {
+        return null;
+    }
+    return { mediaType: match[1], base64: match[2] };
+}
+
+const FOOD_ANALYSIS_SYSTEM_PROMPT = `You are a nutrition assistant helping someone track links between what they eat/drink and their symptoms. Look at the photo (if provided) and description of a food or drink item.
+
+Respond in JSON format:
+{
+  "items": ["short name of each distinct food/drink identified, e.g. 'coffee', 'fried chicken'"],
+  "category": "meal|snack|drink|dessert|other",
+  "possible_triggers": ["common symptom triggers present, choose from: dairy, gluten, caffeine, alcohol, spicy, high-sugar, processed, fried, high-fat, artificial-sweetener, histamine, nightshade, citrus, none"],
+  "summary": "one short sentence describing the item(s)"
+}
+Only use information visible in the photo or provided in the description. If you cannot tell, make a reasonable best guess from the description alone.`;
+
+export async function analyzeFoodImage({ orgId, imageDataUrl, description }) {
+    let settings;
+    let apiKey;
+
+    try {
+        settings = await resolveOrgAiSettings(orgId);
+        apiKey = getProviderKey(settings);
+    } catch (error) {
+        console.warn('AI settings unavailable for food analysis:', error.message);
+        return null;
+    }
+
+    if (!apiKey) {
+        return null;
+    }
+
+    const userText = description
+        ? `Description provided by the user: ${description}`
+        : 'No description provided; rely on the photo.';
+
+    try {
+        if (settings.provider === 'anthropic' && imageDataUrl) {
+            const parsed = parseDataUrl(imageDataUrl);
+            const client = createAnthropicClient(apiKey);
+            const completion = await client.messages.create({
+                model: settings.model,
+                max_tokens: 500,
+                system: FOOD_ANALYSIS_SYSTEM_PROMPT,
+                messages: [
+                    {
+                        role: 'user',
+                        content: [
+                            ...(parsed
+                                ? [{ type: 'image', source: { type: 'base64', media_type: parsed.mediaType, data: parsed.base64 } }]
+                                : []),
+                            { type: 'text', text: `${userText}\n\nReturn ONLY valid JSON, no code fences.` },
+                        ],
+                    },
+                ],
+            });
+
+            return extractJson(completion.content?.[0]?.text || '');
+        }
+
+        if (settings.provider === 'openai') {
+            const client = createOpenAIClient(apiKey);
+            const completion = await client.chat.completions.create({
+                model: settings.model,
+                messages: [
+                    { role: 'system', content: FOOD_ANALYSIS_SYSTEM_PROMPT },
+                    {
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: userText },
+                            ...(imageDataUrl ? [{ type: 'image_url', image_url: { url: imageDataUrl } }] : []),
+                        ],
+                    },
+                ],
+                response_format: { type: 'json_object' },
+                max_tokens: 500,
+            });
+
+            return extractJson(completion.choices?.[0]?.message?.content || '');
+        }
+
+        // Providers without straightforward vision support here (google/abacus):
+        // fall back to a text-only structured prompt using the description.
+        return await runStructuredPrompt({
+            orgId,
+            systemPrompt: FOOD_ANALYSIS_SYSTEM_PROMPT,
+            userPrompt: userText,
+            maxTokens: 500,
+        });
+    } catch (error) {
+        console.error('analyzeFoodImage failed:', error.message);
+        return null;
+    }
+}
+
 export async function generateEmbedding(text) {
     const openai = createOpenAIClient(defaultOpenAIKey);
     if (!openai) {
