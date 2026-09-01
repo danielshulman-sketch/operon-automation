@@ -354,7 +354,9 @@ CREATE TABLE food_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Daily pain level logs (for the food-pain tracker)
+-- Pain level log entries (for the food-pain tracker). Append-only: every save creates a
+-- new timestamped row (not an upsert), so each change in pain level during the day is kept
+-- for analysis, not just the latest value.
 CREATE TABLE pain_logs (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
@@ -362,9 +364,7 @@ CREATE TABLE pain_logs (
   log_date DATE NOT NULL,
   pain_level INTEGER NOT NULL CHECK (pain_level BETWEEN 0 AND 10),
   notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, log_date)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ALL INDEXES

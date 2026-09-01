@@ -24,7 +24,7 @@ export async function GET(request) {
             queryText += ` AND log_date <= $${params.length}`;
         }
 
-        queryText += ` ORDER BY log_date DESC LIMIT 200`;
+        queryText += ` ORDER BY log_date DESC, created_at DESC LIMIT 200`;
 
         const result = await query(queryText, params);
 
@@ -52,11 +52,12 @@ export async function POST(request) {
 
         const resolvedDate = logDate || new Date().toISOString().slice(0, 10);
 
+        // Append-only: every save is a new row with its own timestamp, so a pain level
+        // changed several times in a day keeps a full timestamped history for analysis
+        // instead of only the latest value overwriting the rest.
         const result = await query(
             `INSERT INTO pain_logs (org_id, user_id, log_date, pain_level, notes)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (user_id, log_date)
-             DO UPDATE SET pain_level = EXCLUDED.pain_level, notes = EXCLUDED.notes, updated_at = NOW()
              RETURNING *`,
             [user.org_id, user.id, resolvedDate, level, notes || null]
         );
