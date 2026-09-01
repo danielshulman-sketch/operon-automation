@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Camera, Trash2, Sparkles, Utensils, Activity, X, Pencil, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Camera, Trash2, Sparkles, Utensils, Activity, X, Pencil, AlertCircle, Barcode, Loader2 } from 'lucide-react';
+import { lookupBarcode } from '@/utils/off-lookup';
 
 const MAX_IMAGE_DIMENSION = 1024;
 const IMAGE_QUALITY = 0.8;
@@ -90,6 +91,13 @@ export default function FoodPainTrackerPage() {
     const [editDescription, setEditDescription] = useState('');
     const [savingEdit, setSavingEdit] = useState(false);
 
+    const [scanning, setScanning] = useState(false);
+    const [scanStarting, setScanStarting] = useState(false);
+    const [scanError, setScanError] = useState(null);
+    const [barcodeProduct, setBarcodeProduct] = useState(null);
+    const videoRef = useRef(null);
+    const scannerControlsRef = useRef(null);
+
     const authHeaders = useCallback(() => {
         const token = localStorage.getItem('auth_token');
         return { Authorization: `Bearer ${token}` };
@@ -165,7 +173,7 @@ export default function FoodPainTrackerPage() {
 
     const handleSaveFood = async (e) => {
         e.preventDefault();
-        if (!imagePreview && !description.trim()) return;
+        if (!imagePreview && !description.trim() && !barcodeProduct) return;
 
         setSavingFood(true);
         try {
@@ -176,11 +184,13 @@ export default function FoodPainTrackerPage() {
                     image: imagePreview,
                     description: description.trim(),
                     logDate: todayDate(),
+                    productAnalysis: barcodeProduct?.analysis || null,
                 }),
             });
             if (res.ok) {
                 setDescription('');
                 setImagePreview(null);
+                setBarcodeProduct(null);
                 fetchFoodLogs();
             }
         } catch (error) {
@@ -188,6 +198,71 @@ export default function FoodPainTrackerPage() {
         }
         setSavingFood(false);
     };
+
+    const stopScanner = useCallback(() => {
+        if (scannerControlsRef.current) {
+            scannerControlsRef.current.stop();
+            scannerControlsRef.current = null;
+        }
+    }, []);
+
+    const handleStartScan = async () => {
+        setScanError(null);
+        setScanning(true);
+        setScanStarting(true);
+        try {
+            const { BrowserMultiFormatReader } = await import('@zxing/browser');
+            const reader = new BrowserMultiFormatReader();
+            const controls = await reader.decodeFromVideoDevice(
+                undefined,
+                videoRef.current,
+                async (result, err) => {
+                    if (result) {
+                        stopScanner();
+                        setScanning(false);
+                        setScanStarting(false);
+                        const code = result.getText();
+                        setScanError(null);
+                        try {
+                            const lookup = await lookupBarcode(code);
+                            if (lookup.found) {
+                                setBarcodeProduct(lookup);
+                                if (!description.trim()) {
+                                    setDescription(lookup.productName);
+                                }
+                            } else {
+                                setScanError(`Scanned barcode ${code}, but couldn't find product info. Add a description instead.`);
+                            }
+                        } catch (lookupError) {
+                            console.error('Barcode lookup failed:', lookupError);
+                            setScanError('Could not look up that barcode. Add a description instead.');
+                        }
+                    }
+                }
+            );
+            scannerControlsRef.current = controls;
+            setScanStarting(false);
+        } catch (error) {
+            console.error('Failed to start barcode scanner:', error);
+            setScanError('Could not access the camera for scanning.');
+            setScanning(false);
+            setScanStarting(false);
+        }
+    };
+
+    const handleStopScan = () => {
+        stopScanner();
+        setScanning(false);
+        setScanStarting(false);
+    };
+
+    const handleClearBarcodeProduct = () => {
+        setBarcodeProduct(null);
+    };
+
+    useEffect(() => {
+        return () => stopScanner();
+    }, [stopScanner]);
 
     const handleStartEdit = (log) => {
         setEditingLogId(log.id);
@@ -327,6 +402,59 @@ export default function FoodPainTrackerPage() {
                             Tip: for packaged food or drink, also photograph the ingredients label — it gives the best chance of spotting a specific trigger.
                         </p>
 
+                        <button
+                            type="button"
+                            onClick={handleStartScan}
+                            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-gray-300 dark:border-gray-700 text-black dark:text-white text-sm font-semibold hover:border-black dark:hover:border-white transition-colors"
+                        >
+                            <Barcode className="h-4 w-4" />
+                            Scan Barcode for Ingredients
+                        </button>
+
+                        {barcodeProduct && (
+                            <div className="rounded-xl bg-[#F3F3F3] dark:bg-[#151515] p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-inter mb-1">
+                                            Scanned product
+                                        </p>
+                                        <p className="text-sm text-black dark:text-white font-inter">
+                                            {barcodeProduct.productName}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleClearBarcodeProduct}
+                                        className="text-gray-400 hover:text-black dark:hover:text-white transition-colors flex-shrink-0"
+                                        aria-label="Clear scanned product"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                                {barcodeProduct.analysis?.ingredients?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                        {barcodeProduct.analysis.ingredients.slice(0, 8).map((ingredient, idx) => (
+                                            <span
+                                                key={`${ingredient}-${idx}`}
+                                                className="px-2 py-0.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 font-inter"
+                                            >
+                                                {ingredient}
+                                            </span>
+                                        ))}
+                                        {barcodeProduct.analysis.ingredients.length > 8 && (
+                                            <span className="px-2 py-0.5 text-xs text-gray-400 font-inter">
+                                                +{barcodeProduct.analysis.ingredients.length - 8} more
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {scanError && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 font-inter">{scanError}</p>
+                        )}
+
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
@@ -337,7 +465,7 @@ export default function FoodPainTrackerPage() {
 
                         <button
                             type="submit"
-                            disabled={savingFood || imageProcessing || (!imagePreview && !description.trim())}
+                            disabled={savingFood || imageProcessing || (!imagePreview && !description.trim() && !barcodeProduct)}
                             className="w-full py-3 px-4 rounded-xl bg-black dark:bg-white text-white dark:text-black font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
                             {savingFood ? 'Saving...' : 'Add Entry'}
@@ -345,6 +473,44 @@ export default function FoodPainTrackerPage() {
                     </form>
                 </div>
             </div>
+
+            {scanning && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-[#1E1E1E] rounded-2xl p-4 max-w-sm w-full">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-sora font-bold text-black dark:text-white">Scan Barcode</h3>
+                            <button
+                                type="button"
+                                onClick={handleStopScan}
+                                className="text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                                aria-label="Cancel scan"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="relative rounded-xl overflow-hidden bg-black aspect-square">
+                            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                            {scanStarting && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                    <Loader2 className="h-8 w-8 text-white animate-spin" />
+                                </div>
+                            )}
+                            <div className="absolute inset-8 border-2 border-white/70 rounded-lg pointer-events-none" />
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-inter mt-3 text-center">
+                            Point your camera at the product&apos;s barcode
+                        </p>
+                        <button
+                            type="button"
+                            onClick={handleStopScan}
+                            className="w-full mt-3 py-2.5 px-4 rounded-xl border border-gray-300 dark:border-gray-700 text-black dark:text-white text-sm font-semibold hover:border-black dark:hover:border-white transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Pattern analysis */}
             <div className="rounded-2xl border border-[#E6E6E6] dark:border-[#333333] bg-white dark:bg-[#1E1E1E] p-6 mb-8">

@@ -6,6 +6,15 @@ import { analyzeFoodImage } from '@/utils/openai';
 
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024; // ~6MB, base64-encoded
 
+function isValidProductAnalysis(value) {
+    return (
+        value &&
+        typeof value === 'object' &&
+        Array.isArray(value.ingredients) &&
+        value.ingredients.every((i) => typeof i === 'string')
+    );
+}
+
 export async function GET(request) {
     try {
         const user = await requireAuth(request);
@@ -43,11 +52,11 @@ export async function POST(request) {
         const user = await requireAuth(request);
         await ensureFoodPainTrackerTables();
 
-        const { image, description, logDate } = await request.json();
+        const { image, description, logDate, productAnalysis } = await request.json();
 
-        if (!image && !description) {
+        if (!image && !description && !productAnalysis) {
             return NextResponse.json(
-                { error: 'Provide a photo, a description, or both' },
+                { error: 'Provide a photo, a description, or a scanned barcode' },
                 { status: 400 }
             );
         }
@@ -61,16 +70,21 @@ export async function POST(request) {
         }
 
         const resolvedDate = logDate || new Date().toISOString().slice(0, 10);
+        const resolvedDescription = description || productAnalysis?.summary || null;
 
-        let aiAnalysis = null;
-        try {
-            aiAnalysis = await analyzeFoodImage({
-                orgId: user.org_id,
-                imageDataUrl: image || null,
-                description: description || null,
-            });
-        } catch (error) {
-            console.error('Food image analysis failed, continuing without it:', error.message);
+        // A barcode lookup gives us the product's actual ingredients label, which is
+        // more reliable than guessing from a photo, so it takes priority and skips the AI call.
+        let aiAnalysis = isValidProductAnalysis(productAnalysis) ? productAnalysis : null;
+        if (!aiAnalysis) {
+            try {
+                aiAnalysis = await analyzeFoodImage({
+                    orgId: user.org_id,
+                    imageDataUrl: image || null,
+                    description: description || null,
+                });
+            } catch (error) {
+                console.error('Food image analysis failed, continuing without it:', error.message);
+            }
         }
 
         const result = await query(
@@ -81,7 +95,7 @@ export async function POST(request) {
                 user.org_id,
                 user.id,
                 image || null,
-                description || null,
+                resolvedDescription,
                 resolvedDate,
                 aiAnalysis ? JSON.stringify(aiAnalysis) : null,
             ]
