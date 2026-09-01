@@ -329,7 +329,7 @@ export default function FoodPainTrackerPage() {
                     Food, Drink &amp; Pain Tracker
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 font-inter">
-                    Log what you eat and drink, track your daily pain level, and look for patterns between them.
+                    Log what you eat and drink, track your daily pain level, and look for patterns between them — including common fibromyalgia triggers like MSG, artificial sweeteners, gluten, dairy, nightshades, caffeine, and alcohol.
                 </p>
             </div>
 

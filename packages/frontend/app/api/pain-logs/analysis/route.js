@@ -134,7 +134,7 @@ export async function GET(request) {
             try {
                 const response = await generateChatResponse({
                     orgId: user.org_id,
-                    systemPrompt: `You are a careful health-tracking assistant. You are given statistical correlations between logged foods/drinks and a user's self-reported daily pain levels (0-10 scale). Write a short (3-5 sentence) plain-language summary of the most notable patterns. Be explicit that this is correlation, not proof of causation, that the sample size is small, and that they should discuss meaningful patterns with a doctor before changing their diet. Do not give medical diagnoses.`,
+                    systemPrompt: `You are a careful health-tracking assistant helping someone with fibromyalgia. You are given statistical correlations between logged foods/drinks and a user's self-reported daily pain levels (0-10 scale). Write a short (3-5 sentence) plain-language summary of the most notable patterns. When a flagged item matches a food or ingredient commonly reported as a fibromyalgia trigger (MSG/glutamates, artificial sweeteners, gluten, dairy, nightshades, caffeine, alcohol, highly processed/additive-heavy foods), name that connection explicitly. Be explicit that this is correlation, not proof of causation, that the sample size is small, and that they should discuss meaningful patterns with a doctor before changing their diet. Do not give medical diagnoses.`,
                     messages: [
                         {
                             role: 'user',

@@ -19,6 +19,14 @@ const ARTIFICIAL_SWEETENER_ADDITIVES = new Set([
     'en:e950', 'en:e951', 'en:e952', 'en:e954', 'en:e955', 'en:e960', 'en:e961', 'en:e962', 'en:e968',
 ]);
 
+// E620-E625: glutamic acid and its salts (MSG and close relatives) — flagged separately from
+// "processed" since MSG/glutamates are one of the most commonly reported dietary triggers for
+// fibromyalgia flares.
+const MSG_ADDITIVES = new Set([
+    'en:e620', 'en:e621', 'en:e622', 'en:e623', 'en:e624', 'en:e625',
+]);
+const MSG_KEYWORDS = ['msg', 'monosodium glutamate', 'yeast extract', 'hydrolyzed vegetable protein', 'hydrolysed vegetable protein'];
+
 const NIGHTSHADE_KEYWORDS = ['tomato', 'potato', 'pepper', 'paprika', 'eggplant', 'aubergine', 'chilli', 'chili'];
 const CITRUS_KEYWORDS = ['lemon', 'lime', 'orange', 'grapefruit', 'citrus'];
 const HISTAMINE_KEYWORDS = ['vinegar', 'soy sauce', 'fermented', 'aged cheese', 'sauerkraut', 'wine'];
@@ -39,6 +47,9 @@ function deriveTriggers({ ingredientsLower, allergenTags, additiveTags, category
     if ((additiveTags || []).some((tag) => ARTIFICIAL_SWEETENER_ADDITIVES.has(tag))) {
         triggers.add('artificial-sweetener');
     }
+    if ((additiveTags || []).some((tag) => MSG_ADDITIVES.has(tag))) {
+        triggers.add('msg');
+    }
     if ((additiveTags || []).length > 0) {
         triggers.add('processed');
     }
@@ -52,6 +63,7 @@ function deriveTriggers({ ingredientsLower, allergenTags, additiveTags, category
     }
 
     const text = ingredientsLower || '';
+    if (MSG_KEYWORDS.some((kw) => text.includes(kw))) triggers.add('msg');
     if (ALCOHOL_KEYWORDS.some((kw) => text.includes(kw))) triggers.add('alcohol');
     if (NIGHTSHADE_KEYWORDS.some((kw) => text.includes(kw))) triggers.add('nightshade');
     if (CITRUS_KEYWORDS.some((kw) => text.includes(kw))) triggers.add('citrus');
