@@ -16,6 +16,7 @@ import {
     X,
     Building2,
     Book,
+    Utensils,
 } from 'lucide-react';
 
 export default function DashboardSidebar({ isOpen = false, onClose = () => { } }) {
@@ -53,6 +54,7 @@ export default function DashboardSidebar({ isOpen = false, onClose = () => { } }
         { name: 'Automations', icon: Zap, href: '/dashboard/automations' },
         { name: 'Integration Stats', icon: BarChart3, href: '/dashboard/automations/stats' },
         { name: 'AI Chat', icon: MessageCircle, href: '/dashboard/chat' },
+        { name: 'Food & Pain Tracker', icon: Utensils, href: '/dashboard/food-pain-tracker' },
     ];
 
     if (isAdmin || isSuperadmin) {

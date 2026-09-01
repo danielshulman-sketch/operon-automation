@@ -342,6 +342,31 @@ CREATE TABLE embedding_records (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Food/drink logs (photo + description, for the food-pain tracker)
+CREATE TABLE food_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  image_data TEXT,
+  description TEXT,
+  log_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  ai_analysis JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Pain level log entries (for the food-pain tracker). Append-only: every save creates a
+-- new timestamped row (not an upsert), so each change in pain level during the day is kept
+-- for analysis, not just the latest value.
+CREATE TABLE pain_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  org_id UUID NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  log_date DATE NOT NULL,
+  pain_level INTEGER NOT NULL CHECK (pain_level BETWEEN 0 AND 10),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ALL INDEXES
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_org_members_org_user ON org_members(org_id, user_id);
@@ -377,4 +402,6 @@ CREATE INDEX idx_user_activity_created ON user_activity(created_at DESC);
 CREATE INDEX idx_event_logs_org_type ON event_logs(org_id, event_type);
 CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
 CREATE INDEX idx_embedding_records_org_type ON embedding_records(org_id, entity_type);
+CREATE INDEX idx_food_logs_user_date ON food_logs(user_id, log_date);
+CREATE INDEX idx_pain_logs_user_date ON pain_logs(user_id, log_date);
 CREATE INDEX idx_embedding_records_vector ON embedding_records USING ivfflat (embedding vector_cosine_ops) WITH (lists=100);
